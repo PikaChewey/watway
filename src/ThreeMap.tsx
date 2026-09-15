@@ -1,3 +1,13 @@
+import { createPhysicalScene } from "./navigation/physicalRenderer";
+import {
+  movePhysicalWalker,
+  advanceRehearsal,
+} from "./navigation/physicalWalker";
+import {
+  coveredBuildings,
+  entrances as physicalEntrances,
+  doors as physicalDoors,
+} from "./navigation/physicalModel";
 import {
   createWalkWorld,
   sampleWalkSurface,
@@ -35,6 +45,7 @@ import { routePoint } from "./routing";
 import type { Point, Route, Weather } from "./types";
 export type CameraMode = "orbit" | "map" | "first" | "third";
 export interface MapHandle {
+  rehearse: (route: Route) => void;
   experience: (kind: "tunnel" | "stairs") => void;
   focus: (point: Point, distance?: number) => void;
   zoom: (factor: number) => void;
@@ -45,6 +56,7 @@ export interface MapHandle {
 }
 interface Props {
   visualMode?: VisualMode;
+  traversalSpeed?: number;
   onImageryStatus?: (status: string) => void;
   quality?: "auto" | "high" | "battery";
   timeOfDay?: number;
@@ -67,6 +79,11 @@ interface Props {
   showCrowds: boolean;
   onReady: () => void;
   onPosition?: (p: Point) => void;
+  onTraversalProgress?: (
+    progress: number,
+    blocked: boolean,
+    done: boolean,
+  ) => void;
   onWalkContext?: (building: string, floor: number) => void;
 }
 const v = (p: Point) => new THREE.Vector3(...p);
@@ -135,7 +152,10 @@ function box(w: number, h: number, d: number, x: number, y: number, z: number) {
 function merged(gs: THREE.BufferGeometry[], color: string, cast = false) {
   if (!gs.length) return new THREE.Group();
   const g = mergeGeometries(
-    gs.map((g) => {g.deleteAttribute("uv");return g.index ? g.toNonIndexed() : g;}),
+    gs.map((g) => {
+      g.deleteAttribute("uv");
+      return g.index ? g.toNonIndexed() : g;
+    }),
     false,
   );
   const m = mesh(g, color);
@@ -167,6 +187,23 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
   useImperativeHandle(
     ref,
     () => ({
+      rehearse: (route) => {
+        const s = state.current;
+        if (!s || !route.physical) return;
+        s.guide = {
+          route,
+          index: 1,
+          distance: 0,
+          blockedFrames: 0,
+          done: false,
+        };
+        const a = route.nodes[0].point,
+          b = route.nodes[1]?.point || a;
+        s.pendingSpawn = {
+          point: [...a],
+          yaw: Math.atan2(-(b[0] - a[0]), -(b[2] - a[2])),
+        };
+      },
       experience: (kind) => {
         const s = state.current;
         if (!s) return;
@@ -185,8 +222,6 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
           v(point).add(new THREE.Vector3(d * 0.55, d, d * 0.72)),
         );
         s.transition = 1;
-        s.player.copy(v(point));
-        s.player.y = Math.max(0.5, point[1]);
       },
       zoom: (factor) => {
         const s = state.current;
@@ -499,7 +534,8 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       selectionGroup = new THREE.Group(),
       indoorGroup = new THREE.Group();
     scene.add(routeGroup, selectionGroup, indoorGroup);
-    const walkWorld = createWalkWorld();
+    const physicalScene = createPhysicalScene();
+    const walkWorld = physicalScene.group;
     scene.add(walkWorld);
     const avatar = new THREE.Group();
     const body = mesh(new THREE.CapsuleGeometry(0.38, 1, 5, 8), "#f1c84e");
@@ -624,6 +660,9 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       treeMeshes,
       particles,
       walkWorld,
+      physicalScene,
+      guide: null,
+      hasSpawned: false,
       pendingSpawn: null,
       networkWalk: false,
       walkContext: null,
@@ -744,7 +783,12 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
           controls.enabled = false;
           s.transition = 0;
           const b = buildingById[current.selected || "DC"];
-          if (!wasWalking && current.indoor && b?.id === "DC") {
+          if (
+            !s.hasSpawned &&
+            !s.pendingSpawn &&
+            current.indoor &&
+            b?.id === "DC"
+          ) {
             const corridor = indoorFeatures.find(
               (f) =>
                 f.building === "DC" &&
@@ -755,7 +799,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
             if (corridor)
               player.set(corridor.points[0][0], 1, corridor.points[0][1]);
             else player.set(b.center[0], 1, b.center[2]);
-          } else if (!wasWalking && b) {
+          } else if (!s.hasSpawned && !s.pendingSpawn && b) {
             const candidates = mapFeatures
               .filter((f) => f.type === "path")
               .flatMap((f) => f.points)
@@ -774,7 +818,8 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
             if (at) player.set(at[0], 0.5, at[1]);
             else player.set(b.center[0] + 60, 0.5, b.center[2] + 60);
           }
-          if (!wasWalking) {
+          s.hasSpawned = true;
+          if (!wasWalking && !s.guide) {
             s.yaw = -0.5;
             s.pitch = 0;
           }
@@ -796,73 +841,56 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         }
       }
       if (current.mode === "first" || current.mode === "third") {
-        if (current.playing && current.route) {
-          const pos = routePoint(current.route, current.progress);
-          player.copy(v(pos.point));
-          const dx = pos.next[0] - player.x,
-            dz = pos.next[2] - player.z;
-          if (Math.hypot(dx, dz) > 0.1) s.yaw = Math.atan2(-dx, -dz);
-        } else {
-          const f =
-              (keys.w || keys.arrowup ? 1 : 0) -
-              (keys.s || keys.arrowdown ? 1 : 0),
-            side = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
-          if (keys.arrowleft) s.yaw += dt * 1.7;
-          if (keys.arrowright) s.yaw -= dt * 1.7;
-          const speed = (keys.shift ? 1.65 : 1) * dt;
-          const norm = Math.hypot(f, side) || 1,
-            forward = (f / norm) * 4.8,
-            strafe = (side / norm) * 2.8;
-          const dx =
-              (-Math.sin(s.yaw) * forward + Math.cos(s.yaw) * strafe) * speed,
-            dz =
-              (-Math.cos(s.yaw) * forward - Math.sin(s.yaw) * strafe) * speed;
-          const insideDC =
-            current.indoor && current.selected === "DC" && current.floor === 1;
-          const blocked = (x: number, z: number) =>
-            sampleWalkSurface(x, z, player.y)
-              ? false
-              : s.walkContext?.kind === "tunnel" &&
-                  Math.min(
-                    Math.hypot(x - s.walkContext.a[0], z - s.walkContext.a[2]),
-                    Math.hypot(x - s.walkContext.b[0], z - s.walkContext.b[2]),
-                  ) > 1
-                ? true
-                : insideDC
-                  ? collides(x, z)
-                  : buildings.some(
-                      (b) =>
-                        !(current.indoor && b.id === current.selected) &&
-                        pointInPolygon(x, z, b.polygon),
-                    );
-          if (!blocked(player.x + dx, player.z)) player.x += dx;
-          if (!blocked(player.x, player.z + dz)) player.z += dz;
-          player.x = THREE.MathUtils.clamp(player.x, -2100, 1700);
-          player.z = THREE.MathUtils.clamp(player.z, -1400, 1400);
-        }
-        if (!current.playing) {
-          const surface = sampleWalkSurface(player.x, player.z, player.y);
-          if (surface) {
-            player.y = THREE.MathUtils.damp(player.y, surface.height, 24, dt);
-            s.walkContext = surface.surface;
-            s.networkWalk = true;
-            if (now - lastPosition > 250)
-              current.onWalkContext?.(
-                surface.surface.building,
-                Math.max(0, Math.floor((player.y - 0.5 + 0.15) / 3.8) + 1),
-              );
-          } else {
-            s.walkContext = null;
-            if (!s.networkWalk && current.indoor)
-              player.y = (current.floor - 1) * 3.8 + 0.5;
-          }
-        }
-
         if (s.pendingSpawn) {
           player.copy(v(s.pendingSpawn.point));
           s.yaw = s.pendingSpawn.yaw || 0;
           s.pendingSpawn = null;
+          s.hasSpawned = true;
         }
+        let movement;
+        if (current.playing && current.route?.physical && s.guide) {
+          movement = advanceRehearsal(
+            player.toArray() as Point,
+            current.route,
+            s.guide,
+            dt,
+            1.6 * (current.traversalSpeed || 1),
+          );
+          player.copy(v(movement.point));
+          s.yaw = THREE.MathUtils.lerp(s.yaw, movement.yaw, 0.25);
+          if (now - lastPosition > 200)
+            current.onTraversalProgress?.(
+              movement.progress,
+              s.guide.blockedFrames > 30,
+              movement.done,
+            );
+        } else {
+          const forward =
+              (keys.w || keys.arrowup ? 1 : 0) -
+              (keys.s || keys.arrowdown ? 1 : 0),
+            strafe = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+          if (keys.arrowleft) s.yaw += dt * 1.7;
+          if (keys.arrowright) s.yaw -= dt * 1.7;
+          const norm = Math.hypot(forward, strafe) || 1,
+            speed = keys.shift ? 1.7 : 1;
+          const dx =
+              ((-Math.sin(s.yaw) * forward * 2.6 +
+                Math.cos(s.yaw) * strafe * 1.9) /
+                norm) *
+              dt *
+              speed,
+            dz =
+              ((-Math.cos(s.yaw) * forward * 2.6 -
+                Math.sin(s.yaw) * strafe * 1.9) /
+                norm) *
+              dt *
+              speed;
+          movement = movePhysicalWalker(player.toArray() as Point, dx, dz);
+          player.copy(v(movement.point));
+        }
+        s.walkContext = movement?.segment;
+        if (movement?.building && now - lastPosition > 200)
+          current.onWalkContext?.(movement.building, movement.floor || 1);
         const eye = player.clone().add(new THREE.Vector3(0, 1.65, 0)),
           look = new THREE.Vector3(
             -Math.sin(s.yaw) * Math.cos(s.pitch),
@@ -914,46 +942,103 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         }
         rainGeo.attributes.position.needsUpdate = true;
       }
-      buildings.forEach((b, i) => {
-        const el = labelElements[i];
+      const occupied: { x: number; y: number; w: number; h: number }[] = [];
+      const important = [
+        "MC",
+        "DC",
+        "SLC",
+        "STC",
+        "QNC",
+        "E5",
+        "PSE",
+        "RCH",
+        "PAC",
+        "REV",
+        "UWP",
+        "CLV-S",
+        "CLV-N",
+        "V1C",
+        "LIB",
+      ];
+      const tunnelBuildings = [
+        "AL",
+        "ML",
+        "EV1",
+        "HH",
+        "TC",
+        "SCH",
+        "MC",
+        "C2",
+        "E2",
+        "RCH",
+        "DWE",
+      ];
+      const ordered = buildings
+        .map((b, i) => ({ b, i }))
+        .sort(
+          (a, b) =>
+            (a.b.id === current.selected
+              ? -100
+              : important.includes(a.b.id)
+                ? 0
+                : 1) -
+            (b.b.id === current.selected
+              ? -100
+              : important.includes(b.b.id)
+                ? 0
+                : 1),
+        );
+      for (const { b, i } of ordered) {
+        const el = labelElements[i],
+          far = camera.position.distanceTo(v(b.center)),
+          tunnelMode = current.visualMode === "tunnels";
         tmp
           .set(
             b.center[0],
-            (buildingMeshes.get(b.id)?.userData.height || b.height) + 5,
+            tunnelMode
+              ? 1
+              : (buildingMeshes.get(b.id)?.userData.height || b.height) + 4,
             b.center[2],
           )
           .project(camera);
-        const far = camera.position.distanceTo(v(b.center));
-        const visible =
+        let visible =
           current.showLabels &&
-          current.mode !== "first" &&
-          current.mode !== "third" &&
+          !["first", "third"].includes(current.mode) &&
           tmp.z < 1 &&
-          Math.abs(tmp.x) < 1.1 &&
-          Math.abs(tmp.y) < 1.1 &&
-          (far < 320 ||
-            [
-              "DC",
-              "MC",
-              "SLC",
-              "LIB",
-              "E5",
-              "QNC",
-              "M3",
-              "STC",
-              "PAC",
-              "EV3",
-              "HH",
-              "EIT",
-              "PSE",
-            ].includes(b.id));
+          Math.abs(tmp.x) < 0.98 &&
+          Math.abs(tmp.y) < 0.97 &&
+          (tunnelMode
+            ? tunnelBuildings.includes(b.id)
+            : far < 350 ||
+              important.includes(b.id) ||
+              b.id === current.selected);
+        const x = (tmp.x * 0.5 + 0.5) * root.clientWidth,
+          y = (-tmp.y * 0.5 + 0.5) * root.clientHeight,
+          w =
+            b.id === current.selected
+              ? Math.min(210, 75 + b.shortName.length * 5)
+              : Math.max(40, b.id.length * 7 + 21),
+          h = 26;
+        const rect = { x: x - w / 2, y: y - h, w, h };
+        if (
+          visible &&
+          occupied.some(
+            (o) =>
+              rect.x < o.x + o.w + 8 &&
+              rect.x + rect.w + 8 > o.x &&
+              rect.y < o.y + o.h + 7 &&
+              rect.y + rect.h + 7 > o.y,
+          )
+        )
+          visible = false;
         el.style.display = visible ? "flex" : "none";
         if (visible) {
-          el.style.transform = `translate(${(tmp.x * 0.5 + 0.5) * root.clientWidth}px,${(-tmp.y * 0.5 + 0.5) * root.clientHeight}px) translate(-50%,-100%)`;
+          occupied.push(rect);
+          el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
           el.classList.toggle("selected", current.selected === b.id);
-          el.classList.toggle("compact", far > 650);
+          el.classList.toggle("compact", current.selected !== b.id);
         }
-      });
+      }
       crowd.children.forEach((o: any, i: number) => {
         const path = o.userData.path;
         if (!path || path.length < 2) return;
@@ -1024,6 +1109,38 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         ground.visible = true;
         indoorGroup.visible = current.indoor;
       }
+      const walking = current.mode === "first" || current.mode === "third";
+      physicalScene.update(
+        current.selected,
+        current.floor,
+        walking,
+        current.visualMode === "tunnels",
+        current.route?.nodes.at(-1)?.id,
+      );
+      walkWorld.visible =
+        current.indoor || walking || current.visualMode === "tunnels";
+      if (
+        current.selected &&
+        coveredBuildings.has(current.selected) &&
+        !(current.selected === "DC" && current.floor === 1)
+      )
+        indoorGroup.visible = false;
+      if (current.visualMode === "tunnels") {
+        buildingGroup.visible = false;
+        surfaceGroup.visible = false;
+        ground.visible = false;
+        treeMeshes.forEach((t) => (t.visible = false));
+        treeTrunks.visible = false;
+        waterMesh.visible = false;
+        pathMesh.visible = false;
+        vehicles.visible = false;
+        crowd.visible = false;
+        crane.visible = false;
+        construction.visible = false;
+        basemaps.group.visible = false;
+        sky.visible = false;
+        (scene.background as THREE.Color).set("#10252e");
+      }
       renderer.render(scene, camera);
     };
     frame = requestAnimationFrame(animate);
@@ -1063,8 +1180,16 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       const a = props.route.nodes[i].point,
         b = props.route.nodes[i + 1].point;
       const points = [
-        new THREE.Vector3(a[0], Math.max(0.75, a[1]), a[2]),
-        new THREE.Vector3(b[0], Math.max(0.75, b[1]), b[2]),
+        new THREE.Vector3(
+          a[0],
+          props.route.physical ? a[1] + 0.06 : Math.max(0.75, a[1]),
+          a[2],
+        ),
+        new THREE.Vector3(
+          b[0],
+          props.route.physical ? b[1] + 0.06 : Math.max(0.75, b[1]),
+          b[2],
+        ),
       ];
       if (points[0].distanceTo(points[1]) < 0.01) continue;
       const line = new THREE.CatmullRomCurve3(points);
@@ -1297,7 +1422,10 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       Math.max(60, Math.sin(angle) * 650),
       250,
     );
-    s.ground.position.y=props.visualMode==="satellite"||props.visualMode==="terrain"?-3:-.25;
+    s.ground.position.y =
+      props.visualMode === "satellite" || props.visualMode === "terrain"
+        ? -3
+        : -0.25;
     s.basemaps.setMode(props.visualMode || "realistic");
     s.basemaps.setNight(props.night);
     s.buildingMaterials.setNight(props.night);

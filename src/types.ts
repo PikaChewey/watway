@@ -81,6 +81,8 @@ export interface GraphEdge {
   closed?: boolean;
   name?: string;
   steep?: boolean;
+  physical?: boolean;
+  surfaceId?:string;
 }
 export type RouteProfile =
   "fastest" | "shortest" | "indoor" | "accessible" | "stairs" | "weather";
@@ -96,6 +98,7 @@ export interface Route {
   profile: RouteProfile;
   steps: RouteStep[];
   estimated: boolean;
+  physical?: boolean;
 }
 export interface RouteStep {
   title: string;

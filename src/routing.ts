@@ -1,3 +1,4 @@
+import{coveredBuildings,physicalNodes,physicalEdges,entrances as physicalEntrances,doors as physicalDoors,nearestPhysicalNode,floorY,segmentWalkable}from"./navigation/physicalModel";
 import { communityLinks } from "./data/communityPaths";
 import {
   indoorFeatures,
@@ -381,8 +382,27 @@ for (const path of communityLinks) {
     `${path.to} approach to ${path.kind}`,
   );
 }
+for(const n of nodes.values())if(n.building==="DC"&&n.floor===1)n.point[1]=.5;for(const p of places)if(p.building==="DC"&&p.floor===1)p.point[1]=.5;
+// Priority interiors use the physical model exclusively. Remove abstract floor jumps and centre spokes.
+for(const e of edges){const a=nodes.get(e.from),b=nodes.get(e.to);const priority=[a,b].some(n=>n?.building&&coveredBuildings.has(n.building));const davisMapped=a?.building==='DC'&&b?.building==='DC'&&a.floor===1&&b.floor===1&&!e.estimated;
+ if(priority&&e.kind!=='outdoor'&&!davisMapped)e.closed=true;
+}
+for(const n of physicalNodes.values())node(n);
+for(const e of physicalEdges){edges.push(e);adj.get(e.from)!.push(e);adj.get(e.to)!.push(e)}
+for(const building of coveredBuildings){const b=buildingById[building];if(!b)continue;for(let f=0;f<=b.floors;f++){const alias=nodes.get(floorId(building,f));const entry=f===1?physicalEntrances.find(e=>e.building===building&&e.floor===1):undefined;const nearest=nearestPhysicalNode(entry?.outside||b.center,building,f) || (f===1?nearestPhysicalNode(b.center,building):undefined);if(alias&&nearest){alias.point=[...nearest.point];edge(alias.id,nearest.id,'indoor',true,false,`${building} · floor ${f} corridor`);const e=edges[edges.length-1];e.physical=true;}}}
+for(const entry of physicalEntrances){const insideNode=nearestPhysicalNode(entry.outside,entry.building,entry.floor);if(!insideNode)continue;node({id:entry.id,point:[...insideNode.point],kind:'entrance',building:entry.building,floor:entry.floor,label:`${entry.building} mapped entrance`});edge(entry.id,insideNode.id,'entrance',true,false,`Enter ${entry.building} through mapped door`);edges[edges.length-1].physical=true;
+ if(entry.floor===1){const near=pathNodes.reduce((a,b)=>distance(a.point,entry.outside)<distance(b.point,entry.outside)?a:b);if(distance(near.point,entry.outside)<35){edge(near.id,entry.id,'outdoor',true,true,'Approach mapped entrance');edges[edges.length-1].physical=true;}}
+}
+// Join the existing mapped Davis floor mesh to the same physical inter-building network.
+for(const n of physicalNodes.values()){if(n.building!=='DC'||Math.abs(n.point[1]-.5)>.1)continue;const candidates=dcGrid.map(g=>({g,d:Math.hypot(g.point[0]-n.point[0],g.point[2]-n.point[2])})).filter(x=>x.d<1.3).sort((a,b)=>a.d-b.d);const candidate=candidates.find(x=>!segmentBlocked(n.point,x.g.point));if(candidate){edge(n.id,candidate.g.id,'indoor',true,false,'Davis mapped corridor junction');edges[edges.length-1].physical=true}}
 function ensurePlace(id: string) {
   const p = placeById[id];
+  if(p&&coveredBuildings.has(p.building)&&!(p.building==='DC'&&p.floor===1)){
+    if(nodes.has(id))return;
+    const door=physicalDoors.find(d=>d.id===id);if(p.category==='room'&&!door)return;
+    const nearest=nearestPhysicalNode(door?.point||p.point,p.building,p.floor);if(!nearest)return;
+    p.point=[...nearest.point];node({id,point:p.point,kind:p.category==='room'?'room':'hallway',building:p.building,floor:p.floor,label:p.name});edge(id,nearest.id,'indoor',true,!!door?.estimated,door?`Arrive at ${p.name} door`:`${p.name} · corridor access`);edges[edges.length-1].physical=true;return;
+  }
   if (p && !nodes.has(id)) {
     node({
       id,
@@ -610,6 +630,7 @@ export function computeRoute(
       result.seconds -= elevatorEstimate(hour);
       result.elevatorWait -= elevatorEstimate(hour);
     }
+  result.physical=es.every(e=>e.physical||e.kind==="outdoor"||(!e.estimated&&nodes.get(e.from)?.building==="DC"&&nodes.get(e.from)?.floor===1));
   result.steps = makeSteps(result);
   return result;
 }

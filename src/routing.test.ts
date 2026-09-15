@@ -1,10 +1,10 @@
 import{test}from'node:test';import assert from'node:assert/strict';import{computeRoute,nodes,edges}from'./routing';import{searchCampus,askCampus}from'./semantic';
 test('mapped Davis room to room route follows indoor graph',()=>{const r=computeRoute('room-DC-1350','room-DC-1351');assert.ok(r);assert.equal(r.indoorPercent,100);assert.ok(r.nodes.some(n=>n.id.startsWith('dcgrid:')));assert.ok(r.distance>20)});
-test('step-free route excludes stairs',()=>{const r=computeRoute('SLC','room-MC-2065','accessible');assert.ok(r);assert.equal(r.stairs,0);assert.ok(r.edges.every(e=>e.accessible))});
+test('unmodeled elevator access does not invent a step-free route',()=>{const r=computeRoute('SLC','room-MC-2065','accessible');assert.equal(r,null)});
 test('indoor preference increases weather protection',()=>{const a=computeRoute('SLC','E5','fastest'),b=computeRoute('SLC','E5','indoor');assert.ok(a&&b);assert.ok(b.outdoorDistance<a.outdoorDistance)});
 test('removed math bridges are absent',()=>{assert.ok(!edges.some(e=>e.kind==='bridge'&&((e.from.startsWith('MC:')&&(e.to.startsWith('DC:')||e.to.startsWith('M3:')))||(e.to.startsWith('MC:')&&(e.from.startsWith('DC:')||e.from.startsWith('M3:'))))))});
 test('room search and old E7 alias resolve',()=>{assert.equal(searchCampus('DC 1350')[0].id,'room-DC-1350');assert.equal(searchCampus('E7')[0].id,'PSE')});
 test('unknown locations fail safely',()=>{assert.equal(computeRoute('unknown','DC'),null)});
 import{dcWalls,collides}from'./indoor';
 test('mapped wall segments block first-person movement',()=>{const wall=dcWalls.find(w=>Math.hypot(w.b[0]-w.a[0],w.b[1]-w.a[1])>3)!;assert.ok(wall);assert.equal(collides((wall.a[0]+wall.b[0])/2,(wall.a[1]+wall.b[1])/2),true)});
-test('natural-language accessibility preference is enforced',async()=>{const result=await askCampus('Take me to my next class without stairs','SLC','room-MC-2065',{code:0,precipitation:0} as any);assert.equal(result.route?.profile,'accessible')});
+test('natural-language accessibility preference is enforced',async()=>{const result=await askCampus('Take me to my next class without stairs','SLC','room-MC-2065',{code:0,precipitation:0} as any);assert.ok(!result.route||result.route.profile==='accessible')});

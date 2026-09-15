@@ -1,3 +1,4 @@
+import { entrances as physicalEntrances } from "./navigation/physicalModel";
 import { tunnelStart, stairWells } from "./navigation/walkWorld";
 import type { VisualMode } from "./visual/basemaps";
 import { Satellite, Mountain } from "lucide-react";
@@ -446,7 +447,7 @@ export default function App() {
     body.current?.scrollTo({ top: 0 });
   }, [tab, selected, routeVisible, searchOpen]);
   useEffect(() => {
-    if (!playing || !route) return;
+    if (!playing || !route || route.physical) return;
     let last = performance.now(),
       frame = 0;
     const tick = (time: number) => {
@@ -583,32 +584,24 @@ export default function App() {
   };
   const walk = (preview = false, m: CameraMode = "first") => {
     setVisualMode("realistic");
-    setMode(m);
+    setMode(preview ? "first" : m);
     if (mobile) setSheet("peek");
     if (preview) {
       setProgress(0);
       setPlaying(true);
+      if (route?.physical) map.current?.rehearse(route);
     } else setPlaying(false);
   };
   const walkNetwork = (kind: "tunnel" | "stairs") => {
-    const spawn =
-      kind === "tunnel"
-        ? tunnelStart()
-        : stairWells.find((w) => w.building === "MC")!;
-    setVisualMode("realistic");
-    setSelected(spawn.building);
-    setIndoor(true);
-    setFloor(spawn.floor);
-    setMode("first");
-    setPlaying(false);
-    setProgress(0);
-    setSheet("peek");
-    map.current?.experience(kind);
-    setToast(
-      kind === "tunnel"
-        ? "Walk through the mapped tunnel. Use WASD or the touch controls."
-        : "Walk up the staircase. Turn across the landing for the next flight. Stairwell position is mapped; treads are reconstructed.",
+    const building = kind === "stairs" ? "MC" : "STC";
+    const entry = physicalEntrances.find(
+      (e) => e.building === building && e.floor === 1,
     );
+    if (entry)
+      startRoute(
+        kind === "stairs" ? "room-MC-4020" : "room-STC-0010",
+        entry.id,
+      );
   };
   const enterIndoor = () => {
     setVisualMode("realistic");
@@ -784,6 +777,20 @@ export default function App() {
               showCrowds={crowds}
               onReady={() => setReady(true)}
               onPosition={setPosition}
+              traversalSpeed={speed}
+              onTraversalProgress={(p, blocked, done) => {
+                setProgress(p);
+                if (blocked) {
+                  setPlaying(false);
+                  setToast(
+                    "Stopped at a physical obstruction. You can take over with WASD.",
+                  );
+                }
+                if (done) {
+                  setPlaying(false);
+                  setToast("Arrived at the destination door.");
+                }
+              }}
               onWalkContext={(building, floor) => {
                 setSelected(building);
                 setFloor(floor);
@@ -836,6 +843,7 @@ export default function App() {
             ["realistic", Box, "Campus 3D"],
             ["satellite", Satellite, "Satellite"],
             ["terrain", Mountain, "Terrain"],
+            ["tunnels", RouteIcon, "Tunnels"],
           ].map(([id, I, label]) => {
             const Icon = I as any;
             return (
@@ -871,6 +879,8 @@ export default function App() {
               : campus.congestionLevel}
           </span>
         </div>
+        {visualMode==='tunnels'&&<div className="tunnel-map-title"><span>WATERLOO UNDERGROUND</span><strong>Connected beneath campus.</strong><small>Tunnels · entrances · floor transitions</small></div>}
+        {visualMode==='tunnels'&&<details className="scene-reference"><summary>Real campus reference</summary><img loading="lazy" src="/references/sch-al-tunnel.jpeg" alt="Actual orange and yellow SCH–AL tunnel at Waterloo"/><p>SCH–AL tunnel · University of Waterloo</p><a href="https://uwaterloo.ca/news/mathematics/wat-connects-us" target="_blank" rel="noreferrer">View original photograph</a></details>}
         <div className="map-tools">
           <button
             className="compass-control"
@@ -925,6 +935,8 @@ export default function App() {
                   className={floor === f ? "active" : ""}
                   key={f}
                   onClick={() => {
+                    setPlaying(false);
+                    setMode("orbit");
                     setFloor(f);
                     map.current?.focus(
                       [
@@ -945,11 +957,11 @@ export default function App() {
           <div className="walk-experiences">
             <button onClick={() => walkNetwork("tunnel")}>
               <LogIn size={16} />
-              Walk a tunnel
+              STC basement
             </button>
             <button onClick={() => walkNetwork("stairs")}>
               <Footprints size={16} />
-              Try stairs
+              MC 4020
             </button>
           </div>
         )}
@@ -1490,10 +1502,11 @@ export default function App() {
                   </div>
                   <button
                     className="primary start-walk"
-                    onClick={() => walk(true, "third")}
+                    disabled={!route.physical}
+                    onClick={() => walk(true, "first")}
                   >
                     <Navigation size={18} fill="currentColor" />
-                    Start route preview<span>{minutes(route)} min</span>
+                    Rehearse this route<span>{minutes(route)} min</span>
                   </button>
                   <div className="section-head">
                     <h2>Along the way</h2>
@@ -2048,6 +2061,7 @@ export default function App() {
                   ))}
                 </div>
               )}
+              {selected==='SLC'&&<details className="interior-reference"><summary>Photo reference · SLC 1120</summary><img loading="lazy" src="/references/slc-1120.jpg" alt="Actual SLC 1120 doors and corridor finishes"/><a href="https://uwaterloo.ca/student-life-centre/inside-student-life-centre/slc-spaces" target="_blank" rel="noreferrer">University of Waterloo source</a></details>}
               <div className="section-head">
                 <h2>Inside {selectedBuilding.id}</h2>
                 <span>PLACES</span>

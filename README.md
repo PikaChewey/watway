@@ -85,3 +85,11 @@ Use a feature branch for changes and run the tests and production build before o
 The map now includes 136 campus/residence entries, including REV, UW Place, Village 1, MKV, and CLV blocks, plus mapped building sub-parts. **Campus 3D** prioritizes consistent geometry; **Satellite** and **Terrain** are optional contextual views.
 
 Use **Walk a tunnel** or **Try stairs** to enter the mapped walking network. Stairs have actual step surfaces and landings; walking changes the player's height. W/S moves faster than A/D strafing, with normalized diagonal movement. Mapped stairwell positions and floor connections are used, but tread dimensions, stair orientation, and corridor construction remain approximations. This is not a surveyed indoor twin.
+
+## Unified physical rehearsal
+
+Priority indoor routes now use a shared corridor/stair/landing/door model for rendering, collision, route generation, and guided movement. The **MC 4020** and **STC basement** controls plan routes from mapped entrances. Guided movement advances through the collision controller; it no longer copies a route interpolation into the player's position each frame. Camera and floor inspection do not relocate the walking player.
+
+The MC entrance → MC 4020 and STC entrance → STC 0010 routes complete through that shared controller in end-to-end tests. MC floor-4 corridor extensions and the exact door anchor remain inferred; they are not a verified current floor plan. No STC basement-to-other-building tunnel was invented without source evidence. Elevators in the priority physical model are not implemented yet, so unsupported step-free routes are withheld.
+
+**Tunnels** is a dedicated underground view. Reference photographs for the SCH–AL tunnel and SLC 1120 are included with source links; tunnel colours and materials follow those references. Building labels are collision-filtered to prevent overlap.

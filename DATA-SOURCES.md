@@ -33,3 +33,10 @@ The visual campus was extended with public OpenStreetMap geometry for REV, UW Pl
 The walkable tunnel paths and stairwell locations come from WATIsGrass. Stair flights, tread dimensions, switchback orientation, railings, and corridor wall heights are reconstructions at those mapped positions, not surveyed interior architecture. Free walking samples these surfaces for vertical movement. Exact access and interior geometry still need verification.
 
 Satellite and terrain views optionally request Esri basemap tiles, with attribution shown in the interface. Campus 3D uses the mapped geometry directly and does not require those imagery requests. Esri imagery credits: Esri, Vantor, Earthstar Geographics, and the GIS User Community.
+
+## Physical navigation reference images
+
+- `public/references/sch-al-tunnel.jpeg`: University of Waterloo photograph of the yellow/orange arts tunnel, from https://uwaterloo.ca/news/mathematics/wat-connects-us .
+- `public/references/slc-1120.jpg`: University of Waterloo SLC 1120 doorway photograph, from https://uwaterloo.ca/student-life-centre/inside-student-life-centre/slc-spaces .
+
+Photographs retain their original copyright. They are visual references, not evidence of surveyed geometry. MC 4020's room identity is supported by https://uwaterloo.ca/math/events/stress-muo-trivia-night ; its exact doorway position in this prototype is inferred. Public MC third-floor plans and mapped fourth-floor corridor lines inform the reconstruction, with explicit uncertainty retained.

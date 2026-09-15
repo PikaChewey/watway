@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { project } from "../data/campus";
-export type VisualMode = "realistic" | "satellite" | "terrain";
+export type VisualMode = "realistic" | "satellite" | "terrain" | "tunnels";
 const lon = (x: number, z: number) => (x / 2 ** z) * 360 - 180;
 const lat = (y: number, z: number) =>
   (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 2 ** z))) * 180) / Math.PI;
@@ -85,8 +85,8 @@ export function createBasemaps(onStatus: (status: string) => void) {
     satellite,
     terrain,
     setMode: (mode: VisualMode) => {
-      group.visible = mode !== "realistic";
-      if (mode !== "realistic" && !imageryStarted) {
+      group.visible = mode === "satellite" || mode === "terrain";
+      if ((mode === "satellite" || mode === "terrain") && !imageryStarted) {
         imageryStarted = true;
         for (let i = 0; i < 6; i++) void run();
       }
