@@ -1,0 +1,4 @@
+import {pipeline,env}from'@huggingface/transformers';
+env.allowLocalModels=false;
+let extractor:any=null;let vectors:{id:string;v:number[]}[]=[];
+self.onmessage=async(e:MessageEvent)=>{try{if(e.data.type==='init'){extractor=await pipeline('feature-extraction','Xenova/all-MiniLM-L6-v2',{dtype:'q8',progress_callback:(p:any)=>{if(p.progress)self.postMessage({type:'progress',progress:p.progress})}});for(const doc of e.data.documents){const out=await extractor(doc.text,{pooling:'mean',normalize:true});vectors.push({id:doc.id,v:Array.from(out.data)})}self.postMessage({type:'ready'})}if(e.data.type==='query'&&extractor){const out=await extractor(e.data.text,{pooling:'mean',normalize:true}),q=Array.from(out.data)as number[];const scores:Record<string,number>={};for(const doc of vectors)scores[doc.id]=doc.v.reduce((s,x,i)=>s+x*q[i],0);self.postMessage({type:'results',id:e.data.id,scores})}}catch(error){self.postMessage({type:'error',message:String(error)})}};
