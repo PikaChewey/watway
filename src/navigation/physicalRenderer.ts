@@ -244,6 +244,23 @@ export function createPhysicalScene() {
     ring.position.set(node.point[0], node.point[1] + 0.15, node.point[2]);
     tunnelOverview.add(ring);
   }
+  // A closed outer envelope backs incomplete reconstructed corridor joins.
+  // It stays outside the walkable network and is shown only from inside.
+  const interiors=new Map<string,PhysicalSegment[]>();
+  for(const segment of segments){if(segment.kind === "tunnel" || segment.kind === "bridge")continue;const list=interiors.get(segment.building)||[];list.push(segment);interiors.set(segment.building,list);}
+  for(const [building,list] of interiors){
+    const minX=Math.min(...list.flatMap(s=>[s.a[0]-s.width/2,s.b[0]-s.width/2]))-1;
+    const maxX=Math.max(...list.flatMap(s=>[s.a[0]+s.width/2,s.b[0]+s.width/2]))+1;
+    const minZ=Math.min(...list.flatMap(s=>[s.a[2]-s.width/2,s.b[2]-s.width/2]))-1;
+    const maxZ=Math.max(...list.flatMap(s=>[s.a[2]+s.width/2,s.b[2]+s.width/2]))+1;
+    const bottom=Math.min(...list.flatMap(s=>[s.a[1],s.b[1]]))-.1;
+    const top=Math.max(...list.flatMap(s=>[s.a[1],s.b[1]]))+3.3;
+    const corners:Point[]=[[minX,bottom,minZ],[maxX,bottom,minZ],[maxX,bottom,maxZ],[minX,bottom,maxZ]];
+    const key=`${building}:1:backdrop`;
+    for(let i=0;i<4;i++){const a=corners[i],b=corners[(i+1)%4];add(key+":wall",quad(a,b,[b[0],top,b[2]],[a[0],top,a[2]]));}
+    add(key+":ceiling",quad(...corners.map(p=>[p[0],top,p[2]] as Point) as [Point,Point,Point,Point]));
+    add(key+":floor",quad(...corners as [Point,Point,Point,Point]));
+  }
   const textureCanvas = document.createElement("canvas");
   textureCanvas.width = 512;
   textureCanvas.height = 256;
@@ -320,6 +337,7 @@ export function createPhysicalScene() {
       part: kind,
       tunnel: key.includes(":tunnel:"),
       stairs: key.includes(":stairs:"),
+      backdrop: key.includes(":backdrop:"),
     };
     mesh.castShadow = false;
     mesh.receiveShadow = false;
@@ -383,6 +401,7 @@ export function createPhysicalScene() {
           obj.material.depthWrite = false;
           return;
         }
+        if(obj.userData.backdrop){obj.visible=walking && obj.userData.building===building;obj.material.transparent=false;obj.material.opacity=1;obj.material.depthWrite=true;return;}
         obj.visible =
           !walking || obj.userData.building === building || obj.userData.tunnel;
         if (walking) {
