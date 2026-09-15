@@ -90,3 +90,17 @@ test("mixed timezone timestamps sort chronologically", () => {
   );
   assert.equal(result.events[0].id, "earlier");
 });
+
+import { createDemoFeed } from "./demo";
+test("demo data is immediate, labelled, and resolves to real campus places", () => {
+  const feed = createDemoFeed(new Date("2030-04-06T12:00:00Z"));
+  assert.equal(feed.mode, "demo");
+  assert.equal(feed.events.length, 35);
+  assert.ok(feed.events.every((e) => e.demo && e.location?.locationId));
+  assert.ok(feed.facilities.every((f) => f.status === "demo"));
+  assert.ok(
+    feed.events.some(
+      (e) => Date.parse(e.start) > Date.parse("2030-04-06T12:00:00Z"),
+    ),
+  );
+});

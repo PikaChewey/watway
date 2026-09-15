@@ -292,6 +292,8 @@ export default function App() {
     loading: feedLoading,
     error: feedError,
     refresh,
+    liveEnabled,
+    setLiveEnabled,
   } = useCampusFeed();
   const at = useMemo(() => {
     const d = new Date(now);
@@ -709,7 +711,11 @@ export default function App() {
             onClick={() => setTimelineOpen(!timelineOpen)}
           >
             <Clock size={14} />
-            {scrub === null ? "Live campus" : formatTime(at)}
+            {scrub === null
+              ? feed?.mode === "demo"
+                ? "Demo campus"
+                : "Live campus"
+              : formatTime(at)}
             <ChevronDown size={12} />
           </button>
           <button
@@ -1705,12 +1711,20 @@ export default function App() {
               </div>
               <div className="feed-freshness">
                 <span className="status-dot" />
-                {feedLoading
-                  ? "Updating campus sources…"
-                  : feed?.fetchedAt
-                    ? `Updated ${formatTime(feed.fetchedAt)}`
-                    : "Connecting public sources"}
+                {feed?.mode === "demo"
+                  ? "Demo day · ready to explore"
+                  : feedLoading
+                    ? "Updating campus sources…"
+                    : feed?.fetchedAt
+                      ? `Updated ${formatTime(feed.fetchedAt)}`
+                      : "Connecting public sources"}
                 {scrub !== null && <b>Time preview</b>}
+                <button
+                  className="feed-mode-toggle"
+                  onClick={() => setLiveEnabled(!liveEnabled)}
+                >
+                  {liveEnabled ? "Use demo data" : "Try live sources"}
+                </button>
               </div>
               <div className="section-head">
                 <h2>Room for a workout?</h2>
@@ -1755,8 +1769,9 @@ export default function App() {
                 <EventCard key={e.id} event={e} onRoute={startRoute} />
               ))}
               <p className="micro-copy">
-                Only confirmed UW venues or explicitly announced UW campus
-                events.{" "}
+                {feed?.mode === "demo"
+                  ? "Curated demo events at real campus venues. Times are illustrative and repeat daily."
+                  : "Only confirmed UW venues or explicitly announced UW campus events."}{" "}
                 {publicEvents.excluded > 0
                   ? `${publicEvents.excluded} off-campus, past, or unresolved listings filtered.`
                   : ""}{" "}
@@ -2392,7 +2407,10 @@ function EventCard({
       </div>
       <div>
         <div className="event-source">
-          <span>{e.source}</span>
+          <span>
+            {e.source}
+            {e.demo ? " · DEMO" : ""}
+          </span>
           <small>{formatTime(e.start)}</small>
         </div>
         <h3>{e.title}</h3>
@@ -2411,7 +2429,7 @@ function EventCard({
           )}
           {e.url && (
             <a href={e.url} target="_blank" rel="noreferrer">
-              Event details
+              {e.demo ? "Original listing" : "Event details"}
               <ExternalLink size={12} />
             </a>
           )}
@@ -2445,11 +2463,13 @@ function FacilityCard({
         <span>
           <strong>{f.name}</strong>
           <small>
-            {fresh
-              ? "Published just now"
-              : preview
-                ? "Predicted activity"
-                : "Cached reading"}{" "}
+            {f.status === "demo"
+              ? "Demo activity"
+              : fresh
+                ? "Published just now"
+                : preview
+                  ? "Predicted activity"
+                  : "Cached reading"}{" "}
             ·{" "}
             {percent < 40
               ? "room to move"
@@ -2471,7 +2491,9 @@ function FacilityCard({
       </div>
       <footer>
         <span>
-          {fresh ? (
+          {f.status === "demo" ? (
+            "DEMO DATA"
+          ) : fresh ? (
             <>
               <span className="status-dot" />
               LIVE SOURCE
@@ -2481,7 +2503,7 @@ function FacilityCard({
           ) : (
             "CACHED"
           )}{" "}
-          {!preview && formatTime(f.updatedAt)}
+          {!preview && f.status !== "demo" && formatTime(f.updatedAt)}
         </span>
         <span>
           Directions

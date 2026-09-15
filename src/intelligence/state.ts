@@ -202,8 +202,9 @@ export function watWayState(
       ? feed?.facilities.filter(
           (r) =>
             r.building === b.id &&
-            r.status === "live" &&
-            Date.now() - Date.parse(r.updatedAt) < 5 * 60000,
+            (r.status === "demo" ||
+              (r.status === "live" &&
+                Date.now() - Date.parse(r.updatedAt) < 5 * 60000)),
         )
       : [];
     const reading = readings?.length
@@ -225,7 +226,7 @@ export function watWayState(
     states[b.id] = {
       building: b.id,
       occupancy: reading?.percent ?? Math.round(Math.min(0.98, occ) * 100),
-      occupancyKind: reading ? "live" : "estimate",
+      occupancyKind: reading?.status === "live" ? "live" : "estimate",
       pedestrianFactor: 1 + burst * 0.16,
       queueSeconds: Math.round(12 + (utilization / (1 - utilization)) * 6),
       open: "unknown",

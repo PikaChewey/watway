@@ -29,6 +29,7 @@ export interface CampusEvent {
   updatedAt?: string;
   personal?: boolean;
   cancelled?: boolean;
+  demo?: boolean;
 }
 export interface FacilityReading {
   id: string;
@@ -38,18 +39,19 @@ export interface FacilityReading {
   capacity?: number;
   count?: number;
   updatedAt: string;
-  status: "live" | "cached" | "unavailable";
+  status: "live" | "cached" | "unavailable" | "demo";
   source: string;
 }
 export interface SourceStatus {
   id: string;
   name: string;
-  status: "live" | "cached" | "unavailable" | "import";
+  status: "live" | "cached" | "unavailable" | "import" | "demo";
   updatedAt?: string;
   detail: string;
   url: string;
 }
 export interface CampusFeed {
+  mode?: "demo" | "live";
   events: CampusEvent[];
   facilities: FacilityReading[];
   sources: SourceStatus[];

@@ -1,10 +1,32 @@
-import { useEffect, useState, useCallback } from "react";
+import { createDemoFeed } from "./demo";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { CampusFeed } from "./types";
 export function useCampusFeed() {
-  const [feed, setFeed] = useState<CampusFeed>(),
-    [loading, setLoading] = useState(true),
+  const [liveEnabled, setLiveEnabledState] = useState(() => {
+    try {
+      return localStorage.getItem("watway-live-feeds") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const setLiveEnabled = (enabled: boolean) => {
+    try {
+      localStorage.setItem("watway-live-feeds", String(enabled));
+    } catch {}
+    setLiveEnabledState(enabled);
+  };
+  const [feed, setFeed] = useState<CampusFeed>(createDemoFeed),
+    [loading, setLoading] = useState(false),
     [error, setError] = useState("");
+  const requestId = useRef(0);
   const refresh = useCallback(async () => {
+    const id = ++requestId.current;
+    if (!liveEnabled) {
+      setFeed(createDemoFeed());
+      setLoading(false);
+      setError("");
+      return;
+    }
     setLoading(true);
     try {
       const r = await fetch("/api/campus/live", {
@@ -12,12 +34,14 @@ export function useCampusFeed() {
       });
       if (!r.ok) throw Error();
       const data = await r.json();
-      setFeed(data);
+      if (id !== requestId.current) return;
+      setFeed({ ...data, mode: "live" });
       setError("");
       try {
         localStorage.setItem("watway-public-feed", JSON.stringify(data));
       } catch {}
     } catch {
+      if (id !== requestId.current) return;
       setError("Showing the last available campus update.");
       let cache: CampusFeed | undefined;
       try {
@@ -31,18 +55,20 @@ export function useCampusFeed() {
           if (r.ok) cache = await r.json();
         } catch {}
       }
-      if (cache)
+      if (cache && id === requestId.current)
         setFeed({
           ...cache,
+          mode: "live",
           facilities: cache.facilities.map((f) => ({ ...f, status: "cached" })),
           sources: cache.sources.map((s) => ({ ...s, status: "cached" })),
         });
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, []);
+  }, [liveEnabled]);
   useEffect(() => {
     refresh();
+    if (!liveEnabled) return;
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
     }, 120000);
@@ -54,6 +80,6 @@ export function useCampusFeed() {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
     };
-  }, [refresh]);
-  return { feed, loading, error, refresh };
+  }, [refresh, liveEnabled]);
+  return { feed, loading, error, refresh, liveEnabled, setLiveEnabled };
 }

@@ -79,9 +79,7 @@ export default function CalendarPanel({
   const existingPersonal = events.filter(
     (e) => e.source === "Google Calendar" || e.source === "Calendar file",
   );
-  useEffect(() => {
-    loadGoogleLibrary().catch(() => {});
-  }, []);
+
   const saveImport = (
     result: {
       events: CampusEvent[];
@@ -209,38 +207,25 @@ export default function CalendarPanel({
         </button>
       </div>
       <div className="calendar-connect-card">
-        <div className="google-g">G</div>
+        <div className="course-icon-demo">
+          <CalendarDays size={25} />
+        </div>
         <div>
           <h3>
-            {connected
-              ? "Google Calendar connected"
-              : "Bring your day to the map"}
+            {classes.some((c) => c.id.startsWith("demo"))
+              ? "Your demo day is ready"
+              : "Your week on the map"}
           </h3>
           <p>
-            {connected
-              ? `${existingPersonal.filter((e) => e.source === "Google Calendar").length} campus events · refreshes while open`
-              : "Your classes become destinations. Your gaps become possibilities."}
+            Classes already have rooms and routes. Edit your day or import a
+            calendar—no sign-in needed.
           </p>
         </div>
       </div>
       <div className="button-pair">
-        <button
-          className="primary"
-          disabled={busy}
-          onClick={connected ? sync : connect}
-        >
-          {busy ? (
-            <RefreshCw size={17} className="spin" />
-          ) : connected ? (
-            <RefreshCw size={17} />
-          ) : (
-            <Link2 size={17} />
-          )}{" "}
-          {busy
-            ? "Connecting…"
-            : connected
-              ? "Sync calendar"
-              : "Connect Google"}
+        <button className="primary" onClick={() => setAdd(!add)}>
+          <Plus size={17} />
+          Add a class
         </button>
         <button
           className="secondary"
@@ -260,87 +245,104 @@ export default function CalendarPanel({
       </div>
       <p className="privacy-caption">
         <ShieldCheck size={12} />
-        Read-only access. Calendar details stay on this device.
+        Ready to explore. Changes stay on this device.
       </p>
-      {setup && (
-        <div className="inline-setup">
-          <div className="section-head">
-            <h3>Google connection setup</h3>
-            <button
-              aria-label="Close Google setup"
-              onClick={() => setSetup(false)}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <p>
-            This installation needs a Google OAuth client ID. You can import a
-            calendar file immediately.
-          </p>
-          <label>
-            Web application client ID
-            <input
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="…apps.googleusercontent.com"
-            />
-          </label>
-          <small>Authorised JavaScript origin: {location.origin}</small>
-          <button
-            className="primary"
-            onClick={() => {
-              if (!clientId.endsWith(".apps.googleusercontent.com"))
-                return notify("Enter a valid Google OAuth web client ID.");
-              localStorage.setItem("watway-google-client", clientId);
-              setSetup(false);
-              connect();
-            }}
-          >
-            Save & connect
-          </button>
-          <a
-            href="https://console.cloud.google.com/apis/credentials"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Google Cloud credentials
-            <ExternalLink size={13} />
-          </a>
-        </div>
-      )}
-      {connected && (
-        <details className="calendar-options">
-          <summary>Calendars & connection</summary>
-          {calendars.map((c) => (
-            <label key={c.id}>
+      <details className="calendar-options optional-calendar">
+        <summary>Optional calendar connection</summary>
+        <p className="micro-copy">
+          Connect a real calendar whenever you’re ready.
+        </p>
+        <button
+          className="secondary"
+          disabled={busy}
+          onClick={connected ? sync : connect}
+        >
+          {busy
+            ? "Connecting…"
+            : connected
+              ? "Sync Google Calendar"
+              : "Connect Google Calendar"}
+        </button>
+        {setup && (
+          <div className="inline-setup">
+            <div className="section-head">
+              <h3>Google connection setup</h3>
+              <button
+                aria-label="Close Google setup"
+                onClick={() => setSetup(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p>
+              This installation needs a Google OAuth client ID. You can import a
+              calendar file immediately.
+            </p>
+            <label>
+              Web application client ID
               <input
-                type="checkbox"
-                checked={chosen.includes(c.id)}
-                onChange={(e) =>
-                  setChosen((v) =>
-                    e.target.checked
-                      ? [...v, c.id]
-                      : v.filter((x) => x !== c.id),
-                  )
-                }
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="…apps.googleusercontent.com"
               />
-              {c.summary}
             </label>
-          ))}
-          <button
-            onClick={() => {
-              disconnectGoogle();
-              setConnected(false);
-              onEvents(events.filter((e) => e.source !== "Google Calendar"));
-              notify(
-                "Google Calendar disconnected and imported Google events removed.",
-              );
-            }}
-          >
-            Disconnect & remove Google events
-          </button>
-        </details>
-      )}
+            <small>Authorised JavaScript origin: {location.origin}</small>
+            <button
+              className="primary"
+              onClick={() => {
+                if (!clientId.endsWith(".apps.googleusercontent.com"))
+                  return notify("Enter a valid Google OAuth web client ID.");
+                localStorage.setItem("watway-google-client", clientId);
+                setSetup(false);
+                connect();
+              }}
+            >
+              Save & connect
+            </button>
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Google Cloud credentials
+              <ExternalLink size={13} />
+            </a>
+          </div>
+        )}
+        {connected && (
+          <details className="calendar-options">
+            <summary>Calendars & connection</summary>
+            {calendars.map((c) => (
+              <label key={c.id}>
+                <input
+                  type="checkbox"
+                  checked={chosen.includes(c.id)}
+                  onChange={(e) =>
+                    setChosen((v) =>
+                      e.target.checked
+                        ? [...v, c.id]
+                        : v.filter((x) => x !== c.id),
+                    )
+                  }
+                />
+                {c.summary}
+              </label>
+            ))}
+            <button
+              onClick={() => {
+                disconnectGoogle();
+                setConnected(false);
+                onEvents(events.filter((e) => e.source !== "Google Calendar"));
+                notify(
+                  "Google Calendar disconnected and imported Google events removed.",
+                );
+              }}
+            >
+              Disconnect & remove Google events
+            </button>
+          </details>
+        )}
+      </details>
       {!!unresolved.length && (
         <details className="unresolved">
           <summary>

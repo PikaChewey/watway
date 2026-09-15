@@ -23,12 +23,16 @@ npm run preview
 
 The Vite development and preview servers include the campus feed API. A plain static host can show the cached public snapshot but cannot refresh the server-side feeds without hosting the API.
 
+## Demo first
+
+The app starts with a built-in class schedule, curated campus events, and example gym activity. No sign-in or campus-feed network request is needed. Demo event times repeat across the coming week and are labelled as illustrative; original listing links are retained. In **Campus**, choose **Try live sources** to opt into the existing live adapters. Google Calendar is under **My day → Optional calendar connection**.
+
 ## What works
 
 - **For you:** upcoming destination, leave-by time, route exposure, and useful stops that fit gaps in your schedule. The initial classes are explicitly labelled samples.
 - **Explore:** 56 buildings, campus amenities, mapped footprints, saved places, and semantic search. Longer searches can load a local embedding model; no conversational UI or external LLM calls.
 - **My day:** recurring class entry, read-only Google Calendar integration, `.ics` import with recurrence and exceptions, and review of unresolved locations. Personal calendar data stays in this browser's local storage.
-- **Campus:** published Warrior Rec occupancy, UW/WYGO/Luma public events, campus-only venue filtering, deduplication, and public Luma/Partiful/WYGO event-link import where details are available.
+- **Campus:** ready-made demo events and activity, with optional published Warrior Rec occupancy and UW/WYGO/Luma public events, campus-only venue filtering, deduplication, and public Luma/Partiful/WYGO event-link import where details are available.
 - **Time preview:** scrub through the day to change predicted activity, route costs, lighting, and available weather forecasts. Predictions are clearly differentiated from current source readings.
 - **3D:** map, orbit, first-person, and third-person views; mapped Davis interior walls and doors; WATIsGrass bridge/tunnel geometry and partial hallway overlays; seasons, weather, day/night, simulated pedestrians and vehicles; adaptive and battery-saving quality modes.
 - **Routes:** shortest/fastest/indoor/step-free/least-stairs/weather-aware preferences, mapped stair exclusions, modeled congestion costs, and animated walkthroughs.
