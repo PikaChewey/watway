@@ -56,6 +56,7 @@ export interface MapHandle {
   move: (key: string, down: boolean) => void;
 }
 interface Props {
+  studentLocation?: {point:Point;building:string;name:string} | null;
   visualMode?: VisualMode;
   traversalSpeed?: number;
   onImageryStatus?: (status: string) => void;
@@ -630,6 +631,12 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
     }
     scene.add(vehicles);
 
+    const mayaPin=document.createElement("button");
+    mayaPin.className="maya-map-pin";
+    mayaPin.innerHTML='<span class="maya-pin-avatar">MP</span><span><strong>Maya is here</strong><small></small></span><i></i>';
+    mayaPin.setAttribute("aria-label","Maya’s demo location");
+    mayaPin.onclick=()=>{const location=p.current.studentLocation;if(location)p.current.onSelect(location.building);};
+    labels.current!.appendChild(mayaPin);
     const labelElements: HTMLButtonElement[] = [];
     for (const b of buildings) {
       const el = document.createElement("button");
@@ -1025,6 +1032,17 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
                 ? 0
                 : 1),
         );
+      const location=current.studentLocation;
+      if(location && !["first","third"].includes(current.mode) && current.visualMode !== "tunnels") {
+        const b=buildingById[location.building];
+        const projected=new THREE.Vector3(location.point[0],Math.max(location.point[1],b?.height||0)+12,location.point[2]).project(camera);
+        const x=(projected.x*.5+.5)*root.clientWidth,y=(-projected.y*.5+.5)*root.clientHeight;
+        const visible=projected.z<1 && Math.abs(projected.x)<1 && Math.abs(projected.y)<1;
+        mayaPin.style.display=visible?"flex":"none";
+        mayaPin.style.transform=`translate(${x}px,${y}px) translate(-50%,-100%)`;
+        mayaPin.querySelector("small")!.textContent=location.name;
+        if(visible)occupied.push({x:x-82,y:y-72,w:164,h:72});
+      } else mayaPin.style.display="none";
       for (const { b, i } of ordered) {
         const el = labelElements[i],
           far = camera.position.distanceTo(v(b.center)),
@@ -1155,8 +1173,8 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       for (const [id, group] of buildingMeshes)
         group.visible = !(walking && id === s.walkContext?.building) && !(current.indoor && current.selected === id);
       physicalScene.update(
-        current.selected,
-        current.floor,
+        walking ? s.walkContext?.building || current.selected : current.selected,
+        walking ? Math.round((player.y-.5)/3.8)+1 : current.floor,
         walking,
         current.visualMode === "tunnels",
         current.route?.nodes.at(-1)?.id,
@@ -1169,6 +1187,14 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         !(current.selected === "DC" && current.floor === 1)
       )
         indoorGroup.visible = false;
+      if(walking && s.walkContext && !["entrance"].includes(s.walkContext.kind)) {
+        // Campus-scale scenery must not protrude into the reconstructed interior.
+        buildingGroup.visible=false; bridges.visible=false; surfaceGroup.visible=false;
+        ground.visible=false; pathMesh.visible=false; waterMesh.visible=false;
+        treeMeshes.forEach(t=>t.visible=false); treeTrunks.visible=false;
+        crane.visible=false; construction.visible=false; crowd.visible=false; vehicles.visible=false;
+        particles.visible=false; basemaps.group.visible=false;
+      } else particles.visible=current.weather.precipitation>0;
       if (current.visualMode === "tunnels") {
         buildingGroup.visible = false;
         bridges.visible = false;
@@ -1216,10 +1242,18 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       basemaps.dispose();
       renderer.dispose();
       renderer.domElement.remove();
+      mayaPin.remove();
       labelElements.forEach((e) => e.remove());
       state.current = null;
     };
   }, []);
+  useEffect(() => {
+    const s=state.current, location=props.studentLocation;
+    if(!s || !location || ["first","third"].includes(props.mode) || props.visualMode === "tunnels")return;
+    s.target.set(location.point[0],Math.max(location.point[1],(buildingById[location.building]?.height||0)*.5),location.point[2]);
+    s.destination.copy(s.target).add(new THREE.Vector3(180,225,210));
+    s.transition=1;
+  },[props.studentLocation?.building,props.studentLocation?.point[0],props.studentLocation?.point[2],props.mode]);
   useEffect(() => {
     const s = state.current;
     if (!s) return;
@@ -1251,7 +1285,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       ];
       if (points[0].distanceTo(points[1]) < 0.01) continue;
       const line = new THREE.CatmullRomCurve3(points);
-      const width = props.indoor ? 0.32 : 1.25;
+      const width = props.mode === "first" || props.mode === "third" ? 0.055 : props.indoor ? 0.32 : 1.25;
       const tube = mesh(
         new THREE.TubeGeometry(line, 1, width, 6, false),
         props.route.edges[i].kind === "outdoor" ? "#ffc94f" : "#40daca",
@@ -1267,11 +1301,12 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       [props.route.nodes.length - 1, "#ffcf4d"],
     ] as [number, string][]) {
       const p = props.route.nodes[idx].point;
-      const marker = mesh(new THREE.CylinderGeometry(3, 3, 1, 24), color);
+      const walking = props.mode === "first" || props.mode === "third";
+      const marker = mesh(new THREE.CylinderGeometry(walking ? .3 : 3, walking ? .3 : 3, walking ? .03 : 1, 24), color);
       marker.position.set(p[0], Math.max(1, p[1]), p[2]);
       s.routeGroup.add(marker);
     }
-  }, [props.route, props.indoor]);
+  }, [props.route, props.indoor, props.mode]);
   useEffect(() => {
     const s = state.current;
     if (!s) return;

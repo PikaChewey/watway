@@ -883,6 +883,7 @@ export default function App() {
               showLabels={labels}
               showConnections={connections}
               showCrowds={crowds}
+              studentLocation={demoStudentActive ? resolveLocation(from) : null}
               onReady={() => setReady(true)}
               onPosition={setPosition}
               traversalSpeed={speed}

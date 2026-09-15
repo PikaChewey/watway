@@ -1,3 +1,4 @@
+import { createInteriorTextures } from "../visual/interiorTextures";
 import pitchRoute from "../data/tunnel-pitch-route.json";
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -32,6 +33,7 @@ export function createPhysicalScene() {
     list.push(g);
     buckets.set(key, list);
   };
+  const stairSegments = segments.filter(s => s.kind === "stairs");
   for (const s of segments) {
     if (s.building === "DC" && s.floor === 1 && s.kind === "corridor") continue;
     const dx = s.b[0] - s.a[0],
@@ -45,7 +47,7 @@ export function createPhysicalScene() {
       s.a[1] + (s.b[1] - s.a[1]) * t + up,
       s.a[2] + dz * t + nz * side,
     ];
-    const key = `${s.building}:${s.floor}:${s.kind === "tunnel" ? "tunnel" : "interior"}`;
+    const key = `${s.building}:${s.floor}:${s.kind === "tunnel" ? "tunnel" : ["stairs","landing"].includes(s.kind) ? "stairs" : "interior"}`;
     if (s.kind === "stairs") {
       for (let i = 0; i < (s.steps || 12); i++) {
         const n = s.steps || 12,
@@ -86,11 +88,12 @@ export function createPhysicalScene() {
         const pieces = Math.max(1, Math.ceil(len / 0.6));
         for (let i = 0; i < pieces; i++) {
           const mid = point((i + 0.5) / pieces, 0, 2.9);
-          const shaftOpening = stairShafts.some(
-            (w) =>
-              w.building === s.building &&
-              Math.hypot(mid[0] - w.center[0], mid[2] - w.center[2]) < 6.3,
-          );
+          const shaftOpening = stairSegments.some(w => {
+            if(w.building !== s.building || Math.abs(w.floor-s.floor)>1) return false;
+            const dx=w.b[0]-w.a[0], dz=w.b[2]-w.a[2], den=dx*dx+dz*dz;
+            const t=Math.max(0,Math.min(1,((mid[0]-w.a[0])*dx+(mid[2]-w.a[2])*dz)/(den||1)));
+            return Math.hypot(mid[0]-w.a[0]-t*dx,mid[2]-w.a[2]-t*dz)<w.width/2+.25;
+          });
           if (shaftOpening) continue;
           add(
             key + ":ceiling",
@@ -104,13 +107,15 @@ export function createPhysicalScene() {
         }
       }
     }
-    if (["corridor", "tunnel", "bridge", "door", "entrance"].includes(s.kind)) {
+    if (["corridor", "tunnel", "bridge", "door", "entrance", "stairs", "landing"].includes(s.kind)) {
       const divisions = Math.max(1, Math.ceil(len / 0.55));
       for (const side of [-1, 1])
         for (let i = 0; i < divisions; i++) {
           const t = (i + 0.5) / divisions,
             p = point(t, side);
-          const junction = samplePhysical(p[0], p[2], p[1], -0.12, s.id);
+          // Test beyond the wall, not on its boundary: duplicated parallel
+          // corridor segments must not erase each other's enclosing walls.
+          const junction = samplePhysical(p[0] + nx / (s.width/2) * side * .2, p[2] + nz / (s.width/2) * side * .2, p[1], .02, s.id);
           if (junction) continue;
           add(
             key + ":wall",
@@ -123,6 +128,18 @@ export function createPhysicalScene() {
           );
         }
     }
+    if (["corridor","tunnel","bridge","landing"].includes(s.kind)) {
+      // Close dead ends while leaving actual connecting passages open.
+      const pieces=Math.max(2,Math.ceil(s.width/.45));
+      for(const end of [0,1]) for(let i=0;i<pieces;i++) {
+        const a=-1+2*i/pieces,b=-1+2*(i+1)/pieces;
+        const p=point(end,(a+b)/2), sign=end===0?-1:1;
+        if(samplePhysical(p[0]+dx/len*.2*sign,p[2]+dz/len*.2*sign,p[1],.02,s.id))continue;
+        add(key+":wall",quad(point(end,a),point(end,b),point(end,b,2.9),point(end,a,2.9)));
+      }
+    }
+    if (["stairs","landing"].includes(s.kind))
+      add(key+":ceiling",quad(point(0,-1,2.9),point(1,-1,2.9),point(1,1,2.9),point(0,1,2.9)));
     if (["corridor", "tunnel", "bridge"].includes(s.kind)) {
       for (let d = 2; d < len; d += 7) {
         const p = point(d / len, 0, 2.86),
@@ -249,18 +266,21 @@ export function createPhysicalScene() {
   artsTexture.wrapS = artsTexture.wrapT = THREE.RepeatWrapping;
   artsTexture.colorSpace = THREE.SRGBColorSpace;
   artsTexture.anisotropy = 4;
+  const interiorTextures = createInteriorTextures();
   const materials = {
-    floor: new THREE.MeshStandardMaterial({
-      color: "#b0b5aa",
-      roughness: 0.88,
+    floor: new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      map: interiorTextures.floor,
       side: THREE.DoubleSide,
     }),
     wall: new THREE.MeshBasicMaterial({
-      color: "#cbd0c5",
+      color: "#ffffff",
+      map: interiorTextures.wall,
       side: THREE.DoubleSide,
     }),
     ceiling: new THREE.MeshBasicMaterial({
-      color: "#c8cfc6",
+      color: "#ffffff",
+      map: interiorTextures.ceiling,
       side: THREE.DoubleSide,
     }),
     rail: new THREE.MeshStandardMaterial({
@@ -278,21 +298,20 @@ export function createPhysicalScene() {
     );
     if (!geometry) continue;
     const material = materials[kind].clone();
-    if (
-      key.includes(":tunnel:") &&
-      ["AL", "ML", "TC", "SCH"].includes(key.split(":")[0]) &&
-      ["floor", "wall", "ceiling"].includes(kind)
-    ) {
-      const pos = geometry.attributes.position,
-        uv = [];
-      for (let i = 0; i < pos.count; i++)
-        uv.push(
-          (pos.getX(i) + pos.getZ(i)) * 0.07,
-          kind === "wall" ? pos.getY(i) * 0.25 : pos.getZ(i) * 0.07,
-        );
-      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-      material.map = artsTexture;
-      material.color.set("#ffffff");
+    if (["floor", "wall", "ceiling"].includes(kind)) {
+      const pos=geometry.attributes.position, normals=geometry.attributes.normal;
+      const uv:number[]=[];
+      const baseY=(Number(key.split(":")[1])-1)*3.8+.5;
+      for(let i=0;i<pos.count;i++) {
+        if(kind === "wall") {
+          const along=Math.abs(normals.getX(i))>Math.abs(normals.getZ(i))?pos.getZ(i):pos.getX(i);
+          uv.push(along/3.2,(pos.getY(i)-baseY)/2.9);
+        } else if(kind === "floor" && Math.abs(normals.getY(i))<.5) {
+          uv.push((Math.abs(normals.getX(i))>.5?pos.getZ(i):pos.getX(i))/2.4,pos.getY(i)/2.4);
+        } else uv.push(pos.getX(i)/2.4,pos.getZ(i)/2.4);
+      }
+      geometry.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));
+      if(kind === "wall" && key.includes(":tunnel:") && ["AL","ML","TC","SCH"].includes(key.split(":")[0])) material.map=artsTexture;
     }
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData = {
@@ -300,6 +319,7 @@ export function createPhysicalScene() {
       floor: Number(key.split(":")[1]),
       part: kind,
       tunnel: key.includes(":tunnel:"),
+      stairs: key.includes(":stairs:"),
     };
     mesh.castShadow = false;
     mesh.receiveShadow = false;
@@ -314,7 +334,7 @@ export function createPhysicalScene() {
     g.rotation.y = angle;
     const panel = new THREE.Mesh(
       new THREE.BoxGeometry(1.25, 2.25, 0.09),
-      new THREE.MeshStandardMaterial({ color: "#516c69", roughness: 0.65 }),
+      new THREE.MeshStandardMaterial({ color: "#ffffff", map: interiorTextures.door, roughness: 0.8 }),
     );
     panel.position.y = 1.125;
     g.add(panel);
@@ -368,9 +388,9 @@ export function createPhysicalScene() {
         if (walking) {
           obj.visible =
             obj.visible &&
-            (obj.userData.part === "ceiling" || obj.userData.part === "wall"
-              ? Math.abs(obj.userData.floor - floor) < 1.1
-              : Math.abs(obj.userData.floor - floor) < 2);
+            (obj.userData.stairs
+              ? Math.abs(obj.userData.floor - floor) <= 1
+              : obj.userData.floor === floor);
           obj.material.transparent = false;
           obj.material.opacity = 1;
           obj.material.depthWrite = true;
