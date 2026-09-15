@@ -124,3 +124,7 @@ Validation: 35 automated checks, including A* optimality, seasonal costs, min-cu
 ### One-click presentation
 
 Tap **Play full demo** on Maya’s card for a roughly five-minute, 17-scene pitch. It advances through her profile, week, actual algorithm comparisons, first-person MC → MC 4020 classroom navigation, daily stops, and the first-person SCH → AL tunnel. Speaking prompts stay visible. Pause/Resume, Next scene, Restart, and Stop are always available. Walking scenes advance on arrival, pause on a detected obstruction, and can be skipped. Timing pauses while the tab is hidden.
+
+### Simplified first-person demo
+
+The first-person presentation now deliberately uses one straight, untextured hallway → staircase → hallway. All faces meet at the same coordinates; the walker remains inside the walls and follows the same step heights as the visible geometry. No automatic camera turns, patterned finishes, campus scenery, or additional floors appear in this scene. It is a functionality illustration, not the literal MC or SCH–AL route; campus route calculations remain in the map/algorithm scenes.

@@ -631,7 +631,7 @@ export default function App() {
     setMode("first");
     setSheet("peek");
     setProgress(0);
-    setSpeed(3);
+    setSpeed(1);
     setWeatherMode("snow");
     setPendingPitch(choice);
   };
@@ -661,7 +661,7 @@ export default function App() {
       if('dry' in scene) {setWeatherMode("sun");setSeason("summer");}
       if(scene.stage === 3) setScrub(775);
     } else if(scene.kind === "interior") {
-      chooseChapter(chapters[0]); startRoute("room-MC-4020","MC"); setSpeed(3); setProgress(0);setAutoWalkPending(true);
+      chooseChapter(chapters[0]); startRoute("room-MC-4020","MC"); setSpeed(1); setProgress(0);setAutoWalkPending(true);
     } else if(scene.kind === "walk") {chooseChapter(chapters[6]);startPitch("guided");}
   }, [autoIndex]);
   useEffect(() => {
@@ -773,6 +773,7 @@ export default function App() {
     category === "all"
       ? places.filter((p) => saved.includes(p.id))
       : places.filter((p) => p.category === category);
+  const simpleDemoActive = (mode === "first" || mode === "third") && (pitchActive || (autoIndex !== null && ["walk","interior"].includes(presentation[autoIndex].kind)));
   const nav = [
     ["home", Navigation, "For you"],
     ["explore", Compass, "Explore"],
@@ -784,7 +785,7 @@ export default function App() {
       className={`watway ${autoIndex !== null ? `presenting ${autoPaused ? "presentation-paused" : ""}` : ""} ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
     >
       {autoIndex !== null && <DemoPlayback index={autoIndex} paused={autoPaused} elapsed={autoElapsed} walkProgress={progress} onPause={toggleFullDemo} onNext={advanceFullDemo} onRestart={()=>{setAutoIndex(null);setAutoPaused(false);setTimeout(()=>setAutoIndex(0),0);}} onStop={stopFullDemo}/>}
-      {engineOpen && <AlgorithmPanel presentationStage={autoIndex !== null && presentation[autoIndex].kind === "engine" ? (presentation[autoIndex] as {stage:number}).stage : undefined} route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
+      {engineOpen && <AlgorithmPanel simplified={simpleDemoActive} presentationStage={autoIndex !== null && presentation[autoIndex].kind === "engine" ? (presentation[autoIndex] as {stage:number}).stage : undefined} route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
       {studentProfileOpen && <StudentProfile onClose={() => setStudentProfileOpen(false)} onPersonal={() => {setDemoStudentActive(false); setStudentProfileOpen(false); setScrub(null); setFrom("SLC"); switchTab("day"); setVisualMode("realistic"); setMode("orbit"); setWeatherMode("live");}}/>}
       <header className="app-header">
         <a
@@ -885,6 +886,7 @@ export default function App() {
               showLabels={labels}
               showConnections={connections}
               showCrowds={crowds}
+              simpleWalk={simpleDemoActive}
               studentLocation={demoStudentActive ? resolveLocation(from) : null}
               onReady={() => setReady(true)}
               onPosition={setPosition}
@@ -1387,7 +1389,7 @@ export default function App() {
             <div className="walking-hud">
               <span>
                 <PersonStanding size={17} />
-                {mode === "first" ? "First person" : "Follow camera"}
+                {simpleDemoActive ? "First person · simple demo" : mode === "first" ? "First person" : "Follow camera"}
               </span>
               {playing && (
                 <button
@@ -1409,7 +1411,7 @@ export default function App() {
               </button>
             </div>
             {mode === "first" && <div className="crosshair" />}
-            {!playing && progress === 0 && (
+            {!simpleDemoActive && !playing && progress === 0 && (
               <GameMinimap
                 position={position}
                 indoor={indoor && selected === "DC" && floor === 1}
@@ -1525,7 +1527,7 @@ export default function App() {
         >
           <i />
           <span>
-            {routeVisible && route
+            {simpleDemoActive ? "Hallway → staircase → hallway" : routeVisible && route
               ? `${minutes(route)} min to ${resolveLocation(to)?.name}`
               : next?.location?.label
                 ? `Next: ${next.location.label}`

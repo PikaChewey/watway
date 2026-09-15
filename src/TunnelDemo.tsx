@@ -26,7 +26,7 @@ export default function TunnelDemo({
         <br />A different level.
       </h1>
       <p className="tunnel-demo-intro">
-        A continuous journey from South Campus Hall to Arts Lecture Hall.
+        A simple hallway → staircase → hallway walkthrough.
       </p>
       <div className="demo-endpoints">
         <div>
@@ -52,7 +52,7 @@ export default function TunnelDemo({
       <button className="demo-play" onClick={() => onStart("guided")}>
         <Play size={17} fill="currentColor" />
         <span>
-          Play the pitch demo<small>Guided · about 50 seconds</small>
+          Play the pitch demo<small>Straight demo · about 25 seconds</small>
         </span>
         <ArrowRight size={18} />
       </button>
@@ -116,8 +116,7 @@ export default function TunnelDemo({
         ))}
       </div>
       <p className="demo-disclosure">
-        Curated demo route. Mapped connections are retained; corridor dimensions
-        and stair geometry are reconstructed.
+        The map shows the campus connection. First-person playback is a simplified straight-line functionality demo.
       </p>
     </section>
   );

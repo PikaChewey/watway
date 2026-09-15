@@ -1,3 +1,4 @@
+import {createStraightScene,moveStraight,STRAIGHT,stairEnd} from "./navigation/straightDemo";
 import mappedBuildingParts from "./data/building-parts.json";
 import { createPhysicalScene } from "./navigation/physicalRenderer";
 import {
@@ -56,6 +57,7 @@ export interface MapHandle {
   move: (key: string, down: boolean) => void;
 }
 interface Props {
+  simpleWalk?: boolean;
   studentLocation?: {point:Point;building:string;name:string} | null;
   visualMode?: VisualMode;
   traversalSpeed?: number;
@@ -192,6 +194,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       rehearse: (route) => {
         const s = state.current;
         if (!s || !route.physical) return;
+        s.simpleReset = true;
         s.guide = {
           route,
           index: 1,
@@ -543,6 +546,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       selectionGroup = new THREE.Group(),
       indoorGroup = new THREE.Group();
     scene.add(routeGroup, selectionGroup, indoorGroup);
+    const straightScene = createStraightScene(); scene.add(straightScene);
     const physicalScene = createPhysicalScene();
     const walkWorld = physicalScene.group;
     scene.add(walkWorld);
@@ -869,7 +873,15 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
           s.hasSpawned = true;
         }
         let movement;
-        if (current.playing && current.route?.physical && s.guide) {
+        if(current.simpleWalk) {
+          if(!s.simpleWasActive || s.simpleReset){player.set(0,0,-.5);s.yaw=0;s.pitch=-.06;s.simpleReset=false;camera.position.set(0,1.65,-.5);}
+          const forward=current.playing ? 1.7*(current.traversalSpeed||1)*dt : ((keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0))*2*dt;
+          const side=current.playing ? 0 : ((keys.d?1:0)-(keys.a?1:0))*1.6*dt;
+          const step=moveStraight(player.x,-player.z,side,forward);
+          player.set(step.x,step.height,-step.distance);
+          if(current.playing){s.yaw=0;s.pitch=-.06;}
+          if(now-lastPosition>200)current.onTraversalProgress?.(step.progress,false,step.progress>=1);
+        } else if (current.playing && current.route?.physical && s.guide) {
           movement = advanceRehearsal(
             player.toArray() as Point,
             current.route,
@@ -910,7 +922,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
           player.copy(v(movement.point));
         }
         if (
-          !current.playing &&
+          !current.simpleWalk && !current.playing &&
           current.route?.physical &&
           s.guide &&
           now - lastPosition > 200
@@ -1133,6 +1145,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         );
         car.rotation.y = -Math.atan2(b[1] - a[1], b[0] - a[0]);
       });
+      sky.visible=!current.night && current.visualMode!=="tunnels";
       const geographic =
         current.visualMode === "satellite" || current.visualMode === "terrain";
       buildingGroup.visible = !geographic;
@@ -1217,6 +1230,13 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         basemaps.group.visible = false;
         sky.visible = false;
         (scene.background as THREE.Color).set("#10252e");
+      }
+      const simpleActive=!!current.simpleWalk && walking;
+      straightScene.visible=simpleActive;
+      s.simpleWasActive=simpleActive;
+      if(simpleActive){
+        [buildingGroup,bridges,indoorGroup,walkWorld,selectionGroup,routeGroup,surfaceGroup,ground,treeTrunks,waterMesh,pathMesh,vehicles,crowd,crane,construction,basemaps.group,sky,particles,avatar].forEach(g=>g.visible=false);
+        treeMeshes.forEach(g=>g.visible=false);
       }
       renderer.render(scene, camera);
     };
