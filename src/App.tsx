@@ -237,6 +237,7 @@ class SceneBoundary extends Component<
   }
 }
 export default function App() {
+  const autoObservedScene = useRef<number | null>(null);
   const [autoWalkPending, setAutoWalkPending] = useState(false);
   const [autoIndex, setAutoIndex] = useState<number | null>(null);
   const [autoPaused, setAutoPaused] = useState(false);
@@ -675,6 +676,7 @@ export default function App() {
     return ()=>clearInterval(timer);
   }, [autoIndex,autoPaused,ready]);
   useEffect(() => {
+    if(autoObservedScene.current !== autoIndex){autoObservedScene.current=autoIndex;return;}
     if(autoIndex === null || autoPaused) return;
     const scene=presentation[autoIndex];
     if(scene.kind === "walk" || scene.kind === "interior") {

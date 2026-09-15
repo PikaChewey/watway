@@ -35,9 +35,13 @@ export function createInteriorTextures() {
     c.fillStyle='#d4d5c8';for(let y=0;y<512;y+=256)for(let x=0;x<512;x+=256)c.fillRect(x+3,y+3,250,250);
     grain(c,19000,.055);
   });
+  const stair=make(c=>{
+    c.fillStyle='#c4c2b5';c.fillRect(0,0,512,512);
+    grain(c,28000,.11);
+  });
   const door=make(c=>{
     c.fillStyle='#866440';c.fillRect(0,0,512,512);
     for(let x=0;x<512;x+=3){c.strokeStyle=x%9?'#71533755':'#b9956255';c.lineWidth=1;c.beginPath();c.moveTo(x,0);c.bezierCurveTo(x+4,150,x-3,350,x+2,512);c.stroke();}
   });
-  return {wall,floor,ceiling,door};
+  return {wall,floor,ceiling,door,stair};
 }

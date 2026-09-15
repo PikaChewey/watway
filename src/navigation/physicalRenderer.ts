@@ -1,3 +1,4 @@
+import { buildStairGeometry } from "../visual/stairGeometry";
 import { createInteriorTextures } from "../visual/interiorTextures";
 import pitchRoute from "../data/tunnel-pitch-route.json";
 import * as THREE from "three";
@@ -49,16 +50,11 @@ export function createPhysicalScene() {
     ];
     const key = `${s.building}:${s.floor}:${s.kind === "tunnel" ? "tunnel" : ["stairs","landing"].includes(s.kind) ? "stairs" : "interior"}`;
     if (s.kind === "stairs") {
-      for (let i = 0; i < (s.steps || 12); i++) {
-        const n = s.steps || 12,
-          t = (i + 0.5) / n,
-          p = point(t, 0),
-          height = s.a[1] + ((s.b[1] - s.a[1]) * (i + 1)) / n;
-        const g = new THREE.BoxGeometry(len / n + 0.01, 0.16, s.width);
-        g.rotateY(-Math.atan2(dz, dx));
-        g.translate(p[0], height - 0.085, p[2]);
-        add(key + ":floor", g);
-      }
+      const stair=buildStairGeometry(s);
+      stair.treads.forEach(g=>add(key+":tread",g));
+      stair.risers.forEach(g=>add(key+":riser",g));
+      stair.nosings.forEach(g=>add(key+":nosing",g));
+      stair.body.forEach(g=>add(key+":stairBody",g));
       for (const side of [-1, 1]) {
         const a = point(0, side, 1),
           b = point(1, side, 1),
@@ -73,6 +69,13 @@ export function createPhysicalScene() {
         );
         g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
         add(key + ":rail", g);
+        for(let d=.15;d<len;d+=1.35){
+          const t=d/len,base=point(t,side*.96);
+          const treadHeight=s.a[1]+(s.b[1]-s.a[1])*Math.ceil(t*(s.steps||12))/(s.steps||12);
+          const top=base[1]+1,postHeight=Math.max(.65,top-treadHeight);
+          const post=new THREE.CylinderGeometry(.024,.024,postHeight,8);
+          post.translate(base[0],treadHeight+postHeight/2,base[2]);add(key+":rail",post);
+        }
       }
     } else {
       add(
@@ -285,6 +288,10 @@ export function createPhysicalScene() {
   artsTexture.anisotropy = 4;
   const interiorTextures = createInteriorTextures();
   const materials = {
+    tread: new THREE.MeshBasicMaterial({color:"#ffffff",map:interiorTextures.stair,side:THREE.DoubleSide}),
+    riser: new THREE.MeshBasicMaterial({color:"#858c85",side:THREE.DoubleSide}),
+    nosing: new THREE.MeshBasicMaterial({color:"#354a40",side:THREE.DoubleSide}),
+    stairBody: new THREE.MeshBasicMaterial({color:"#777e77",side:THREE.DoubleSide}),
     floor: new THREE.MeshBasicMaterial({
       color: "#ffffff",
       map: interiorTextures.floor,
@@ -315,7 +322,7 @@ export function createPhysicalScene() {
     );
     if (!geometry) continue;
     const material = materials[kind].clone();
-    if (["floor", "wall", "ceiling"].includes(kind)) {
+    if (["floor", "wall", "ceiling", "tread"].includes(kind)) {
       const pos=geometry.attributes.position, normals=geometry.attributes.normal;
       const uv:number[]=[];
       const baseY=(Number(key.split(":")[1])-1)*3.8+.5;

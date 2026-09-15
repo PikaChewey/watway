@@ -791,6 +791,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       if (current.mode !== s.mode) {
         const wasWalking = s.mode === "first" || s.mode === "third";
         s.mode = current.mode;
+        camera.fov = current.mode === "first" || current.mode === "third" ? 56 : 43;
         camera.near =
           current.mode === "first" || current.mode === "third" ? 0.08 : 1;
         camera.updateProjectionMatrix();
@@ -877,7 +878,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
             1.6 * (current.traversalSpeed || 1),
           );
           player.copy(v(movement.point));
-          s.yaw = THREE.MathUtils.lerp(s.yaw, movement.yaw, 0.25);
+          s.yaw += Math.atan2(Math.sin(movement.yaw-s.yaw),Math.cos(movement.yaw-s.yaw))*.25;
           if (now - lastPosition > 200)
             current.onTraversalProgress?.(
               movement.progress,
