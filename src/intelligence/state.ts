@@ -78,7 +78,7 @@ export function capacityPerMinute(e: GraphEdge) {
             : 90;
 }
 export function estimateFlow(at: Date, weather: Weather): FlowResult {
-  const key = `${at.getDay()}-${at.getHours()}-${Math.floor(at.getMinutes() / 5)}-${weather.precipitation > 0}`;
+  const key = `${at.getDay()}-${at.getHours()}-${Math.floor(at.getMinutes() / 5)}-${weather.precipitation > 0}-${weather.code}`;
   const existing = flowCache.get(key);
   if (existing) return existing;
   const burst = estimatedClassBurst(at),
@@ -95,6 +95,7 @@ export function estimateFlow(at: Date, weather: Weather): FlowResult {
       weather.precipitation > 0 ? "weather" : "fastest",
       weather,
       at.getHours(),
+      { at },
     );
     if (!r) continue;
     r.edges.forEach((e, i) => {

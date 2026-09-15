@@ -15,8 +15,8 @@ const program = [
   {
     title: "Velocity student start-up panel",
     venue: "South Campus Hall",
-    hour: 14,
-    duration: 1.5,
+    hour: 17,
+    duration: 1,
     source: "Luma",
     url: "https://luma.com/xnbiudsr",
   },
@@ -31,7 +31,7 @@ const program = [
   {
     title: "A peek inside quantum computing",
     venue: "QNC",
-    hour: 17,
+    hour: 16,
     duration: 1,
     source: "Luma",
     url: "https://wygo.world/a-peek-inside-iqc",

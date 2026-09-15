@@ -1,3 +1,4 @@
+import pitchRoute from "../data/tunnel-pitch-route.json";
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import {
@@ -6,6 +7,7 @@ import {
   surfacesAt,
   samplePhysical,
   type PhysicalSegment,
+  stairShafts,
 } from "./physicalModel";
 import type { Point } from "../types";
 function quad(a: Point, b: Point, c: Point, d: Point) {
@@ -80,16 +82,27 @@ export function createPhysicalScene() {
           point(0, 1, -0.035),
         ),
       );
-      if (!["landing", "entrance"].includes(s.kind))
-        add(
-          key + ":ceiling",
-          quad(
-            point(0, -1, 2.9),
-            point(1, -1, 2.9),
-            point(1, 1, 2.9),
-            point(0, 1, 2.9),
-          ),
-        );
+      if (!["landing", "entrance"].includes(s.kind)) {
+        const pieces = Math.max(1, Math.ceil(len / 0.6));
+        for (let i = 0; i < pieces; i++) {
+          const mid = point((i + 0.5) / pieces, 0, 2.9);
+          const shaftOpening = stairShafts.some(
+            (w) =>
+              w.building === s.building &&
+              Math.hypot(mid[0] - w.center[0], mid[2] - w.center[2]) < 6.3,
+          );
+          if (shaftOpening) continue;
+          add(
+            key + ":ceiling",
+            quad(
+              point(i / pieces, -1, 2.9),
+              point((i + 1) / pieces, -1, 2.9),
+              point((i + 1) / pieces, 1, 2.9),
+              point(i / pieces, 1, 2.9),
+            ),
+          );
+        }
+      }
     }
     if (["corridor", "tunnel", "bridge", "door", "entrance"].includes(s.kind)) {
       const divisions = Math.max(1, Math.ceil(len / 0.55));
@@ -120,16 +133,99 @@ export function createPhysicalScene() {
       }
     }
     if (s.kind === "tunnel") {
-      const curve = new THREE.LineCurve3(
-        new THREE.Vector3(...s.a),
-        new THREE.Vector3(...s.b),
+      const featured = ["AL", "TC", "SCH"].includes(s.building),
+        color = featured ? "#e3c17b" : "#72b7be";
+      const base = quad(
+        point(0, -1, -0.08),
+        point(1, -1, -0.08),
+        point(1, 1, -0.08),
+        point(0, 1, -0.08),
       );
-      const mesh = new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 1, 0.8, 6, false),
-        new THREE.MeshBasicMaterial({ color: "#79d8cb" }),
+      tunnelOverview.add(
+        new THREE.Mesh(
+          base,
+          new THREE.MeshBasicMaterial({
+            color,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: featured ? 0.72 : 0.36,
+            depthWrite: false,
+          }),
+        ),
       );
-      tunnelOverview.add(mesh);
+      const sides = mergeGeometries([
+        quad(point(0, -1), point(1, -1), point(1, -1, 2.8), point(0, -1, 2.8)),
+        quad(point(0, 1), point(1, 1), point(1, 1, 2.8), point(0, 1, 2.8)),
+      ]);
+      const wall = new THREE.Mesh(
+        sides,
+        new THREE.MeshBasicMaterial({
+          color,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: featured ? 0.28 : 0.12,
+          depthWrite: false,
+        }),
+      );
+      tunnelOverview.add(wall);
+      const outline = [
+        point(0, -1),
+        point(1, -1),
+        point(1, -1, 2.8),
+        point(0, -1, 2.8),
+        point(0, -1),
+      ];
+      for (const side of [-1, 1]) {
+        const ps = outline.map(
+          (p) =>
+            new THREE.Vector3(
+              p[0] + (side === 1 ? nx * 2 : 0),
+              p[1],
+              p[2] + (side === 1 ? nz * 2 : 0),
+            ),
+        );
+        tunnelOverview.add(
+          new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(ps),
+            new THREE.LineBasicMaterial({
+              color,
+              transparent: true,
+              opacity: featured ? 0.8 : 0.35,
+            }),
+          ),
+        );
+      }
+      if (featured)
+        for (let d = 4; d < len; d += 9) {
+          const p = point(d / len, 0, 0.15);
+          const dot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.35, 6, 4),
+            new THREE.MeshBasicMaterial({ color: "#ffe3a0" }),
+          );
+          dot.position.set(...p);
+          tunnelOverview.add(dot);
+        }
     }
+  }
+  const grid = new THREE.GridHelper(1200, 60, "#33525b", "#1c3740");
+  grid.position.set(150, -8, 130);
+  (grid.material as THREE.LineBasicMaterial).transparent = true;
+  (grid.material as THREE.LineBasicMaterial).opacity = 0.4;
+  tunnelOverview.add(grid);
+  for (const [i, node] of [
+    pitchRoute.nodes[0],
+    pitchRoute.nodes[pitchRoute.nodes.length - 1],
+  ].entries()) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(3, 4.4, 32),
+      new THREE.MeshBasicMaterial({
+        color: i ? "#eac784" : "#a5ddd0",
+        side: THREE.DoubleSide,
+      }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(node.point[0], node.point[1] + 0.15, node.point[2]);
+    tunnelOverview.add(ring);
   }
   const textureCanvas = document.createElement("canvas");
   textureCanvas.width = 512;
@@ -277,9 +373,12 @@ export function createPhysicalScene() {
               : Math.abs(obj.userData.floor - floor) < 2);
           obj.material.transparent = false;
           obj.material.opacity = 1;
+          obj.material.depthWrite = true;
         } else {
           obj.material.transparent =
             obj.userData.part === "ceiling" || obj.userData.part === "wall";
+          obj.material.depthWrite =
+            obj.userData.part !== "ceiling" && obj.userData.part !== "wall";
           obj.material.opacity =
             obj.userData.part === "ceiling"
               ? 0.06

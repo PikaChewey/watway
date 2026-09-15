@@ -1,3 +1,8 @@
+import AlgorithmPanel from "./AlgorithmPanel";
+import { StudentStory, StudentWeek, StudentProfile } from "./StudentDemo";
+import { DEMO_DAY, studentWeek, chapters, type DemoChapter } from "./intelligence/student-demo";
+import TunnelDemo from "./TunnelDemo";
+import pitchRouteData from "./data/tunnel-pitch-route.json";
 import { entrances as physicalEntrances } from "./navigation/physicalModel";
 import { tunnelStart, stairWells } from "./navigation/walkWorld";
 import type { VisualMode } from "./visual/basemaps";
@@ -230,6 +235,15 @@ class SceneBoundary extends Component<
   }
 }
 export default function App() {
+  const [engineOpen, setEngineOpen] = useState(false);
+  const [demoStudentActive, setDemoStudentActive] = useState(true);
+  const [studentProfileOpen, setStudentProfileOpen] = useState(false);
+  const mayaEvents = useMemo(studentWeek, []);
+  const [tunnelFrame, setTunnelFrame] = useState<"demo" | "network">("demo");
+  const [pitchActive, setPitchActive] = useState(false),
+    [pendingPitch, setPendingPitch] = useState<"guided" | "manual" | null>(
+      null,
+    );
   const [visualMode, setVisualMode] = useState<VisualMode>("realistic"),
     [imageryStatus, setImageryStatus] = useState("Loading imagery…");
   const [tab, setTab] = useState<"home" | "explore" | "day" | "campus">("home"),
@@ -240,10 +254,10 @@ export default function App() {
     [category, setCategory] = useState("all"),
     [selected, setSelected] = useState<string | null>(null),
     [selectedPlace, setSelectedPlace] = useState<string | null>(null);
-  const [from, setFrom] = useState(() => stored("watway-origin", "SLC")),
+  const [from, setFrom] = useState("REV"),
     [to, setTo] = useState("room-DC-1350"),
     [profile, setProfile] = useState<RouteProfile>(() =>
-      stored("watway-profile", "fastest"),
+      "weather",
     ),
     [routeVisible, setRouteVisible] = useState(false);
   const [mode, setMode] = useState<CameraMode>("orbit"),
@@ -254,7 +268,7 @@ export default function App() {
     [speed, setSpeed] = useState(1),
     [voice, setVoice] = useState(false),
     [position, setPosition] = useState<Point>([0, 0, 0]);
-  const [classes, setClasses] = useState<ClassEvent[]>(() =>
+  const [customClasses, setClasses] = useState<ClassEvent[]>(() =>
       stored("watway-classes", defaultClasses),
     ),
     [calendarEvents, setCalendarEvents] = useState<CampusEvent[]>(() =>
@@ -264,9 +278,9 @@ export default function App() {
       stored("watway-imported-events", []),
     ),
     [saved, setSaved] = useState<string[]>(() => stored("watway-saved", []));
-  const [weatherMode, setWeatherMode] = useState<WeatherMode>("live"),
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>("snow"),
     [nightOverride, setNightOverride] = useState<boolean | null>(null),
-    [season, setSeason] = useState("autumn"),
+    [season, setSeason] = useState("winter"),
     [labels, setLabels] = useState(true),
     [paths, setPaths] = useState(true),
     [connections, setConnections] = useState(true),
@@ -285,7 +299,7 @@ export default function App() {
     [eventLink, setEventLink] = useState(""),
     [eventLoading, setEventLoading] = useState(false);
   const [now, setNow] = useState(new Date()),
-    [scrub, setScrub] = useState<number | null>(null),
+    [scrub, setScrub] = useState<number | null>(545),
     [mobile, setMobile] = useState(window.innerWidth < 760);
   const map = useRef<MapHandle>(null),
     search = useRef<HTMLInputElement>(null),
@@ -300,12 +314,13 @@ export default function App() {
     refresh,
     liveEnabled,
     setLiveEnabled,
-  } = useCampusFeed();
+  } = useCampusFeed(demoStudentActive ? DEMO_DAY : undefined);
+  const classes = demoStudentActive ? [] : customClasses;
   const at = useMemo(() => {
-    const d = new Date(now);
+    const d = new Date(demoStudentActive ? DEMO_DAY : now);
     if (scrub !== null) d.setHours(Math.floor(scrub / 60), scrub % 60, 0, 0);
     return d;
-  }, [now, scrub]);
+  }, [now, scrub, demoStudentActive]);
   const effective = useMemo(() => {
     const base = effectiveWeather(weather, weatherMode);
     if (scrub === null || weatherMode !== "live") return base;
@@ -326,18 +341,18 @@ export default function App() {
   const publicEvents = useMemo(
     () =>
       reconcileEvents([...(feed?.events || []), ...importedEvents], {
-        now,
+        now: at,
         days: 30,
       }),
-    [feed, importedEvents, now],
+    [feed, importedEvents, at],
   );
   const personal = useMemo(
-    () => [
+    () => demoStudentActive ? mayaEvents : [
       ...weeklyEvents(classes, at),
       ...reconcileEvents(calendarEvents, { personal: true, now: at, days: 45 })
         .events,
     ],
-    [classes, calendarEvents, at],
+    [classes, calendarEvents, at, demoStudentActive, mayaEvents],
   );
   const campus = useMemo(
     () =>
@@ -351,15 +366,18 @@ export default function App() {
       at.getHours(),
       Math.floor(at.getMinutes() / 5),
       effective.precipitation > 0,
+      effective.code,
     ],
   );
   const route = useMemo(
     () =>
-      computeRoute(from, to, profile, effective, at.getHours(), {
-        at,
-        edgeDelays: flow.edgeDelays,
-      }),
-    [from, to, profile, effective, at, flow],
+      pitchActive
+        ? (pitchRouteData as unknown as Route)
+        : computeRoute(from, to, profile, effective, at.getHours(), {
+            at,
+            edgeDelays: flow.edgeDelays,
+          }),
+    [from, to, profile, effective, at, flow, pitchActive],
   );
   const nextRoute = useMemo(
     () =>
@@ -423,7 +441,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem("watway-classes", JSON.stringify(classes));
+      localStorage.setItem("watway-classes", JSON.stringify(customClasses));
       localStorage.setItem(
         "watway-personal-events",
         JSON.stringify(calendarEvents),
@@ -437,7 +455,7 @@ export default function App() {
       localStorage.setItem("watway-saved", JSON.stringify(saved));
       localStorage.setItem("watway-quality", JSON.stringify(quality));
     } catch {}
-  }, [classes, calendarEvents, importedEvents, from, profile, saved, quality]);
+  }, [customClasses, calendarEvents, importedEvents, from, profile, saved, quality]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 6000);
@@ -545,6 +563,7 @@ export default function App() {
     map.current?.focus(buildingById[id].center, 170);
   };
   const startRoute = (destination: string, origin = from) => {
+    setPitchActive(false);
     const dest = resolveLocationId(destination);
     if (!dest)
       return setToast(
@@ -582,6 +601,38 @@ export default function App() {
       ),
     );
   };
+  const chooseChapter = (chapter: DemoChapter) => {
+    setDemoStudentActive(true); setLiveEnabled(false); setScrub(chapter.time); setFrom(chapter.from);
+    setPitchActive(false); setPendingPitch(null); setRouteVisible(false); setPlaying(false);
+    setMode("orbit"); setIndoor(false); setVisualMode("realistic"); setTab("home");
+    setSelected(null); setSelectedPlace(null); setSheet("half"); setDesktopHidden(false);
+    setWeatherMode("snow"); setSeason("winter"); setProfile("weather");
+    const place = resolveLocationId(chapter.from); if (place) map.current?.focus(place.point, 240);
+  };
+  const startPitch = (choice: "guided" | "manual") => {
+    setPitchActive(true);
+    if(demoStudentActive) setScrub(1083);
+    setFrom("SCH");
+    setTo("AL");
+    setProfile("indoor");
+    setRouteVisible(true);
+    setSearchOpen(false);
+    setVisualMode("realistic");
+    setSelected("SCH");
+    setIndoor(false);
+    setMode("first");
+    setSheet("peek");
+    setProgress(0);
+    setSpeed(3);
+    setWeatherMode("snow");
+    setPendingPitch(choice);
+  };
+  useEffect(() => {
+    if (!pendingPitch || !pitchActive || !route || !map.current) return;
+    map.current.rehearse(route);
+    setPlaying(pendingPitch === "guided");
+    setPendingPitch(null);
+  }, [pendingPitch, pitchActive, route]);
   const walk = (preview = false, m: CameraMode = "first") => {
     setVisualMode("realistic");
     setMode(preview ? "first" : m);
@@ -675,8 +726,10 @@ export default function App() {
   ] as const;
   return (
     <div
-      className={`watway ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
+      className={`watway visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
     >
+      {engineOpen && <AlgorithmPanel route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
+      {studentProfileOpen && <StudentProfile onClose={() => setStudentProfileOpen(false)} onPersonal={() => {setDemoStudentActive(false); setStudentProfileOpen(false); setScrub(null); setFrom("SLC"); switchTab("day"); setVisualMode("realistic"); setMode("orbit"); setWeatherMode("live");}}/>}
       <header className="app-header">
         <a
           className="brand"
@@ -702,6 +755,7 @@ export default function App() {
           University of Waterloo <ChevronDown size={13} />
         </div>
         <div className="header-actions">
+          <button className="student-avatar header-student" aria-label="Open Maya’s demo profile" onClick={() => setStudentProfileOpen(true)}>MP</button>
           {offline && (
             <span className="offline-badge">
               <WifiOff size={14} />
@@ -853,6 +907,13 @@ export default function App() {
                 key={id as string}
                 onClick={() => {
                   setVisualMode(id as VisualMode);
+                  if (id === "tunnels") {
+                    setRouteVisible(false);
+                    setSelected(null);
+                    setProgress(0);
+                    setPitchActive(false);
+                    setSheet("half");
+                  }
                   setMode(id === "realistic" ? "orbit" : "map");
                   setIndoor(false);
                   setPlaying(false);
@@ -864,6 +925,7 @@ export default function App() {
             );
           })}
         </div>
+        <button className="engine-trigger" onClick={() => setEngineOpen(true)} aria-label="See algorithms in action"><Activity size={15}/><strong>A*</strong><span>·</span><strong>{weatherMode === "snow" ? "Winter" : "Weather"}</strong><span>·</span><strong>Max-flow</strong><ChevronRight size={15}/></button>
         <div className="map-status-pill">
           <span className="status-dot" />
           {indoor
@@ -879,8 +941,55 @@ export default function App() {
               : campus.congestionLevel}
           </span>
         </div>
-        {visualMode==='tunnels'&&<div className="tunnel-map-title"><span>WATERLOO UNDERGROUND</span><strong>Connected beneath campus.</strong><small>Tunnels · entrances · floor transitions</small></div>}
-        {visualMode==='tunnels'&&<details className="scene-reference"><summary>Real campus reference</summary><img loading="lazy" src="/references/sch-al-tunnel.jpeg" alt="Actual orange and yellow SCH–AL tunnel at Waterloo"/><p>SCH–AL tunnel · University of Waterloo</p><a href="https://uwaterloo.ca/news/mathematics/wat-connects-us" target="_blank" rel="noreferrer">View original photograph</a></details>}
+        {visualMode === "tunnels" && (
+          <div className="tunnel-map-title">
+            <span>WATERLOO UNDERGROUND</span>
+            <strong>
+              {tunnelFrame === "demo"
+                ? "The arts tunnel, revealed."
+                : "The underground network."}
+            </strong>
+            <small>Cutaway mesh · mapped connections</small>
+            <div className="tunnel-frame-switch">
+              <button
+                className={tunnelFrame === "demo" ? "active" : ""}
+                onClick={() => {
+                  setTunnelFrame("demo");
+                  map.current?.focus([225, -1, 265], 185);
+                }}
+              >
+                Featured route
+              </button>
+              <button
+                className={tunnelFrame === "network" ? "active" : ""}
+                onClick={() => {
+                  setTunnelFrame("network");
+                  map.current?.focus([150, -1, 115], 450);
+                }}
+              >
+                Whole network
+              </button>
+            </div>
+          </div>
+        )}
+        {visualMode === "tunnels" && (
+          <details className="scene-reference">
+            <summary>Real campus reference</summary>
+            <img
+              loading="lazy"
+              src="/references/sch-al-tunnel.jpeg"
+              alt="Actual orange and yellow SCH–AL tunnel at Waterloo"
+            />
+            <p>SCH–AL tunnel · University of Waterloo</p>
+            <a
+              href="https://uwaterloo.ca/news/mathematics/wat-connects-us"
+              target="_blank"
+              rel="noreferrer"
+            >
+              View original photograph
+            </a>
+          </details>
+        )}
         <div className="map-tools">
           <button
             className="compass-control"
@@ -955,9 +1064,19 @@ export default function App() {
         )}
         {visualMode === "realistic" && mode !== "first" && mode !== "third" && (
           <div className="walk-experiences">
-            <button onClick={() => walkNetwork("tunnel")}>
+            <button
+              onClick={() => {
+                setVisualMode("tunnels");
+                setMode("map");
+                setRouteVisible(false);
+                setSelected(null);
+                setIndoor(false);
+                setPlaying(false);
+                setSheet("half");
+              }}
+            >
               <LogIn size={16} />
-              STC basement
+              Tunnel demo
             </button>
             <button onClick={() => walkNetwork("stairs")}>
               <Footprints size={16} />
@@ -993,7 +1112,13 @@ export default function App() {
                   className={mode === id ? "active" : ""}
                   key={id as string}
                   onClick={() => {
-                    if (id === "first" || id === "third")
+                    if (
+                      (id === "first" || id === "third") &&
+                      visualMode === "tunnels"
+                    ) {
+                      startPitch("manual");
+                      if (id === "third") setMode("third");
+                    } else if (id === "first" || id === "third")
                       walk(false, id as CameraMode);
                     else setMode(id as CameraMode);
                   }}
@@ -1006,7 +1131,7 @@ export default function App() {
           </div>
         </div>
         <div className="imagery-status">
-          {visualMode !== "realistic" && imageryStatus !== "Imagery ready" && (
+          {(visualMode === "satellite" || visualMode === "terrain") && imageryStatus !== "Imagery ready" && (
             <span>{imageryStatus}</span>
           )}
         </div>
@@ -1036,11 +1161,11 @@ export default function App() {
               </span>
               <button
                 onClick={() => {
-                  setScrub(null);
+                  setScrub(demoStudentActive ? 545 : null);
                   setTimelineOpen(false);
                 }}
               >
-                Back to live
+                {demoStudentActive ? "Reset demo time" : "Back to live"}
                 <X size={14} />
               </button>
             </div>
@@ -1206,6 +1331,14 @@ export default function App() {
                 <PersonStanding size={17} />
                 {mode === "first" ? "First person" : "Follow camera"}
               </span>
+              {playing && (
+                <button
+                  className="take-control"
+                  onClick={() => setPlaying(false)}
+                >
+                  Take control
+                </button>
+              )}
               <button
                 onClick={() => {
                   setMode("orbit");
@@ -1239,13 +1372,14 @@ export default function App() {
                 const Icon = I as any;
                 return (
                   <button
-                    aria-label={`Move ${k}`}
+                    aria-label={`Move ${{w:"forward",a:"left",s:"back",d:"right"}[k as string]}`}
                     key={k as string}
                     onPointerDown={(e) => {
                       e.currentTarget.setPointerCapture(e.pointerId);
                       map.current?.move(k as string, true);
                     }}
                     onPointerUp={() => map.current?.move(k as string, false)}
+                    onLostPointerCapture={() => map.current?.move(k as string, false)}
                     onPointerCancel={() =>
                       map.current?.move(k as string, false)
                     }
@@ -1261,7 +1395,14 @@ export default function App() {
           <div className="playback">
             <div>
               <span className="status-dot" />
-              <strong>{progress >= 1 ? "Arrived" : "Route preview"}</strong>
+              <strong>
+                {progress >= 1
+                  ? "Arrived at Arts Lecture Hall"
+                  : pitchActive
+                    ? "SCH → AL · " +
+                      (playing ? "guided walk" : "you’re in control")
+                    : "Route preview"}
+              </strong>
               <small>{Math.round(progress * 100)}%</small>
               <button
                 aria-label="Close preview"
@@ -1289,6 +1430,7 @@ export default function App() {
               <input
                 type="range"
                 aria-label="Walkthrough progress"
+                disabled={!!route.physical}
                 min="0"
                 max="1"
                 step="0.001"
@@ -1574,6 +1716,8 @@ export default function App() {
                 </div>
               )}
             </>
+          ) : visualMode === "tunnels" ? (
+            <TunnelDemo onStart={startPitch} />
           ) : tab === "home" ? (
             <>
               <div className="home-greeting">
@@ -1585,12 +1729,13 @@ export default function App() {
                         ? "GOOD AFTERNOON"
                         : "GOOD EVENING"}
                   </span>
-                  <h1>Your day, in sync.</h1>
+                  <h1>{demoStudentActive ? "Your day, Maya." : "Your day, in sync."}</h1>
                 </div>
                 <span className="greeting-symbol">
                   <Navigation size={28} />
                 </span>
               </div>
+              {demoStudentActive ? <StudentStory at={at} onChapter={chooseChapter} onProfile={() => setStudentProfileOpen(true)} onTunnel={() => startPitch("guided")}/> : <button className="secondary" onClick={() => chooseChapter(chapters[0])}>Follow Maya’s demo day</button>}
               <button
                 className="current-origin"
                 onClick={() => {
@@ -1761,7 +1906,7 @@ export default function App() {
               </button>
             </>
           ) : tab === "day" ? (
-            <CalendarPanel
+            demoStudentActive ? <StudentWeek events={mayaEvents} at={at} onRoute={startRoute} onProfile={() => setStudentProfileOpen(true)}/> : <CalendarPanel
               events={calendarEvents}
               classes={classes}
               onEvents={setCalendarEvents}
@@ -2061,7 +2206,23 @@ export default function App() {
                   ))}
                 </div>
               )}
-              {selected==='SLC'&&<details className="interior-reference"><summary>Photo reference · SLC 1120</summary><img loading="lazy" src="/references/slc-1120.jpg" alt="Actual SLC 1120 doors and corridor finishes"/><a href="https://uwaterloo.ca/student-life-centre/inside-student-life-centre/slc-spaces" target="_blank" rel="noreferrer">University of Waterloo source</a></details>}
+              {selected === "SLC" && (
+                <details className="interior-reference">
+                  <summary>Photo reference · SLC 1120</summary>
+                  <img
+                    loading="lazy"
+                    src="/references/slc-1120.jpg"
+                    alt="Actual SLC 1120 doors and corridor finishes"
+                  />
+                  <a
+                    href="https://uwaterloo.ca/student-life-centre/inside-student-life-centre/slc-spaces"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    University of Waterloo source
+                  </a>
+                </details>
+              )}
               <div className="section-head">
                 <h2>Inside {selectedBuilding.id}</h2>
                 <span>PLACES</span>

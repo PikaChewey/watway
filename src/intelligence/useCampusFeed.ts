@@ -1,9 +1,11 @@
 import { createDemoFeed } from "./demo";
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { CampusFeed } from "./types";
-export function useCampusFeed() {
+export function useCampusFeed(demoDate?: Date) {
+  const demoTimestamp = demoDate?.getTime();
   const [liveEnabled, setLiveEnabledState] = useState(() => {
     try {
+      if (demoDate) return false;
       return localStorage.getItem("watway-live-feeds") === "true";
     } catch {
       return false;
@@ -15,14 +17,14 @@ export function useCampusFeed() {
     } catch {}
     setLiveEnabledState(enabled);
   };
-  const [feed, setFeed] = useState<CampusFeed>(createDemoFeed),
+  const [feed, setFeed] = useState<CampusFeed>(() => createDemoFeed(demoDate)),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const requestId = useRef(0);
   const refresh = useCallback(async () => {
     const id = ++requestId.current;
     if (!liveEnabled) {
-      setFeed(createDemoFeed());
+      setFeed(createDemoFeed(demoTimestamp === undefined ? undefined : new Date(demoTimestamp)));
       setLoading(false);
       setError("");
       return;
@@ -65,7 +67,7 @@ export function useCampusFeed() {
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [liveEnabled]);
+  }, [liveEnabled, demoTimestamp]);
   useEffect(() => {
     refresh();
     if (!liveEnabled) return;

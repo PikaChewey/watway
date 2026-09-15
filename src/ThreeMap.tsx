@@ -1,3 +1,4 @@
+import mappedBuildingParts from "./data/building-parts.json";
 import { createPhysicalScene } from "./navigation/physicalRenderer";
 import {
   movePhysicalWalker,
@@ -198,7 +199,10 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
           done: false,
         };
         const a = route.nodes[0].point,
-          b = route.nodes[1]?.point || a;
+          b =
+            route.nodes.find(
+              (n) => Math.hypot(n.point[0] - a[0], n.point[2] - a[2]) > 0.25,
+            )?.point || a;
         s.pendingSpawn = {
           point: [...a],
           yaw: Math.atan2(-(b[0] - a[0]), -(b[2] - a[2])),
@@ -266,6 +270,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       height = root.clientHeight;
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
+      logarithmicDepthBuffer: true,
       alpha: false,
       powerPreference: "high-performance",
     });
@@ -273,7 +278,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
     renderer.setPixelRatio(
       Math.min(window.devicePixelRatio, window.innerWidth < 760 ? 1.25 : 1.7),
     );
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = window.innerWidth >= 760;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -387,12 +392,15 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
     const buildingGroup = new THREE.Group(),
       buildingMeshes = new Map<string, THREE.Group>();
     scene.add(buildingGroup);
-    const knownIds = new Set((buildings as any[]).map((b) => b.osmId));
+    const knownIds = new Set([...buildings.map((b) => (b as any).osmId), ...mappedBuildingParts.map(p => p.id)]);
     const contextGeoms: THREE.BufferGeometry[] = [];
     for (const f of mapFeatures.filter(
       (f) => f.type === "building" && !knownIds.has(f.id),
     )) {
       if (f.points.length < 4 || !bounds(f.points)) continue;
+      const cx = f.points.reduce((sum,p) => sum+p[0],0)/f.points.length;
+      const cz = f.points.reduce((sum,p) => sum+p[1],0)/f.points.length;
+      if (buildings.some(b => pointInPolygon(cx,cz,b.polygon))) continue;
       contextGeoms.push(shapeGeometry(f.points, Math.min(45, f.height || 10)));
     }
     buildingGroup.add(merged(contextGeoms, "#c0c1b5", true));
@@ -837,6 +845,10 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
                 ? new THREE.Vector3(0, 900, 1)
                 : new THREE.Vector3(450, 650, 600),
             );
+          if (current.visualMode === "tunnels") {
+            s.target.set(225, -1, 265);
+            s.destination.set(335, 185, 465);
+          }
           s.transition = 1;
         }
       }
@@ -887,6 +899,30 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
               speed;
           movement = movePhysicalWalker(player.toArray() as Point, dx, dz);
           player.copy(v(movement.point));
+        }
+        if (
+          !current.playing &&
+          current.route?.physical &&
+          s.guide &&
+          now - lastPosition > 200
+        ) {
+          let best = 0,
+            dist = Infinity;
+          current.route.nodes.forEach((n, i) => {
+            const d = player.distanceTo(v(n.point));
+            if (d < dist) {
+              dist = d;
+              best = i;
+            }
+          });
+          if (dist < 4) {
+            s.guide.index = Math.min(current.route.nodes.length, best + 1);
+            current.onTraversalProgress?.(
+              best / (current.route.nodes.length - 1),
+              false,
+              best === current.route.nodes.length - 1 && dist < 1,
+            );
+          }
         }
         s.walkContext = movement?.segment;
         if (movement?.building && now - lastPosition > 200)
@@ -1109,7 +1145,14 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         ground.visible = true;
         indoorGroup.visible = current.indoor;
       }
+      if (current.visualMode !== "tunnels") {
+        selectionGroup.visible = true;
+        routeGroup.visible = true;
+      }
       const walking = current.mode === "first" || current.mode === "third";
+      // Reveal the physical interior without leaving an exterior shell in the camera.
+      for (const [id, group] of buildingMeshes)
+        group.visible = !(walking && id === s.walkContext?.building) && !(current.indoor && current.selected === id);
       physicalScene.update(
         current.selected,
         current.floor,
@@ -1127,6 +1170,11 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         indoorGroup.visible = false;
       if (current.visualMode === "tunnels") {
         buildingGroup.visible = false;
+        bridges.visible = false;
+        indoorGroup.visible = false;
+        selectionGroup.visible = false;
+        routeGroup.visible =
+          current.route?.edges.some((e) => e.kind === "tunnel") ?? false;
         surfaceGroup.visible = false;
         ground.visible = false;
         treeMeshes.forEach((t) => (t.visible = false));
@@ -1171,6 +1219,15 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       state.current = null;
     };
   }, []);
+  useEffect(() => {
+    const s = state.current;
+    if (!s) return;
+    if (props.visualMode === "tunnels") {
+      s.target.set(225, -1, 265);
+      s.destination.set(335, 185, 465);
+      s.transition = 1;
+    }
+  }, [props.visualMode]);
   useEffect(() => {
     const s = state.current;
     if (!s) return;
@@ -1401,7 +1458,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
           ? Math.min(devicePixelRatio, 2)
           : Math.min(devicePixelRatio, window.innerWidth < 760 ? 1.25 : 1.7);
     s.renderer.setPixelRatio(ratio);
-    s.renderer.shadowMap.enabled = props.quality !== "battery";
+    s.renderer.shadowMap.enabled = props.quality !== "battery" && window.innerWidth >= 760;
     const el = host.current;
     if (el) {
       if (props.viewportInset)

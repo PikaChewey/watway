@@ -15,7 +15,7 @@ export function createBuildingMaterials() {
     styles.map((s) => [s, makeFacade(s)]),
   ) as Record<FacadeStyle, THREE.MeshStandardMaterial>;
   const roof = new THREE.MeshStandardMaterial({
-    map: makeSurface("roof"),
+    // Uniform roof finish avoids texture interference where mapped parts meet.
     roughness: 0.92,
     color: "#c4c8bd",
   });
@@ -33,8 +33,8 @@ export function createBuildingMaterials() {
     color: "#689296",
     roughness: 0.2,
     metalness: 0.48,
-    transparent: true,
-    opacity: 0.9,
+    transparent: false,
+    opacity: 1,
   });
   return {
     facades,
@@ -94,9 +94,8 @@ export function buildDetailedBuilding(
   for (const segment of segments) {
     const height = Math.max(segment.bottom + 2, segment.height);
     top = Math.max(top, height);
-    const base = shape(segment.polygon, height - segment.bottom);
-    base.translate(0, segment.bottom, 0);
-    solidGeos.push(base);
+    // The facade already supplies the full wall surface. Rendering an
+    // extrusion underneath it creates coplanar faces and visible z-fighting.
     walls.push(facadeGeometry(segment.polygon, height, segment.bottom));
     const roof = shape(segment.polygon);
     const positions = roof.attributes.position;
@@ -166,7 +165,7 @@ export function buildDetailedBuilding(
     if (!geo) continue;
     const mesh = new THREE.Mesh(geo, material);
     mesh.userData.building = b.id;
-    mesh.castShadow = material === materials.concrete;
+    mesh.castShadow = true;
     mesh.receiveShadow = false;
     group.add(mesh);
     geos.forEach((g) => g.dispose());

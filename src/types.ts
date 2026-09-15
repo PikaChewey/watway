@@ -87,6 +87,7 @@ export interface GraphEdge {
 export type RouteProfile =
   "fastest" | "shortest" | "indoor" | "accessible" | "stairs" | "weather";
 export interface Route {
+  search?: {algorithm: "A*" | "Dijkstra"; expanded:number; relaxed:number; discovered:number; milliseconds:number; cost:number};
   nodes: GraphNode[];
   edges: GraphEdge[];
   distance: number;

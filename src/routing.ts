@@ -452,6 +452,17 @@ export function addLocation(id: string, point: Point) {
   );
   edge(id, nearest.id, "outdoor", true, true, "Join campus path");
 }
+// Floor aliases are relocated to physical corridors during assembly. Refresh
+// incident lengths so the geometric A* lower bound never exceeds an edge cost.
+for (const e of edges) e.distance = Math.max(e.distance, distance(nodes.get(e.from)!.point, nodes.get(e.to)!.point));
+function routingEndpoint(id: string) {
+  if (!buildingById[id]) return id;
+  const floor = floorId(id, 1);
+  if (adj.get(floor)?.some(e => !e.closed)) return floor;
+  // Some mapped buildings have only exterior access in our graph (e.g. PAC).
+  // End at an existing public approach instead of inventing an indoor connector.
+  return [...nodes.values()].find(n => n.building === id && n.kind === "entrance" && adj.get(n.id)?.some(e => !e.closed && e.kind === "outdoor"))?.id || floor;
+}
 export const graphStats = {
   nodes: nodes.size,
   edges: edges.length,
@@ -460,8 +471,9 @@ export const graphStats = {
 export function congestion(
   hour: number = new Date().getHours(),
   minute: number = new Date().getMinutes(),
+  day: number = new Date().getDay(),
 ) {
-  const weekday = new Date().getDay() % 6 !== 0;
+  const weekday = day % 6 !== 0;
   return weekday && hour >= 9 && hour <= 17
     ? (minute >= 20 && minute <= 35) || minute >= 50
       ? 1.23
@@ -470,6 +482,11 @@ export function congestion(
 }
 export function elevatorEstimate(hour: number = new Date().getHours()) {
   return hour >= 9 && hour <= 17 ? 24 : 12;
+}
+export function weatherCostModel(weather: Pick<Weather, "precipitation" | "code">) {
+  const snow = weather.code >= 71 && weather.code <= 86;
+  const wet = weather.precipitation > 0 || weather.code >= 51;
+  return { label: snow ? "Winter snow" : wet ? "Rain" : "Dry", outdoorMultiplier: snow ? 1.32 : wet ? 1.13 : 1, exposurePenalty: snow ? 6 : wet ? 3 : weather.code === 45 ? .5 : .12 };
 }
 function travelSeconds(
   e: GraphEdge,
@@ -480,10 +497,7 @@ function travelSeconds(
   if (e.kind === "elevator") return elevatorEstimate(hour) + e.distance / 1.5;
   if (e.kind === "stairs") return e.distance / 0.35;
   const speed = e.kind === "outdoor" ? 1.35 : 1.15;
-  const rain =
-    e.kind === "outdoor" && (weather.precipitation > 0 || weather.code >= 51)
-      ? 1.13
-      : 1;
+  const rain = e.kind === "outdoor" ? weatherCostModel(weather).outdoorMultiplier : 1;
   return (e.distance / speed) * crowd * rain + (e.kind === "entrance" ? 4 : 0);
 }
 function weight(
@@ -503,19 +517,15 @@ function weight(
       seconds +
       (e.kind === "outdoor"
         ? e.distance *
-          (weather.precipitation > 0 || weather.code >= 51
-            ? 3
-            : weather.code === 45
-              ? 0.5
-              : 0.12)
+          weatherCostModel(weather).exposurePenalty
         : 0)
     );
   if (profile === "stairs") return seconds + (e.kind === "stairs" ? 300 : 0);
   return seconds;
 }
 class Heap {
-  a: { id: string; d: number }[] = [];
-  push(v: { id: string; d: number }) {
+  a: { id: string; d: number; g: number }[] = [];
+  push(v: { id: string; d: number; g: number }) {
     const a = this.a;
     a.push(v);
     let i = a.length - 1;
@@ -555,35 +565,43 @@ export function computeRoute(
     code: 0,
   },
   hour = new Date().getHours(),
-  context: { at?: Date; edgeDelays?: Map<string, number> } = {},
+  context: { at?: Date; edgeDelays?: Map<string, number>; algorithm?: "astar" | "dijkstra" } = {},
 ): Route | null {
+  const started = performance.now();
   ensurePlace(from);
   ensurePlace(to);
-  const start = buildingById[from] ? floorId(from, 1) : from,
-    end = buildingById[to] ? floorId(to, 1) : to;
+  const start = routingEndpoint(from),
+    end = routingEndpoint(to);
   if (!nodes.has(start) || !nodes.has(end)) return null;
   const dist = new Map<string, number>([[start, 0]]),
     prev = new Map<string, { id: string; e: GraphEdge }>();
   const heap = new Heap();
-  heap.push({ id: start, d: 0 });
+  // Every edge length covers its Euclidean displacement. 1.5 m/s is the
+  // fastest permitted transport, so this lower bound is admissible for all profiles.
+  const heuristic = (id: string) => context.algorithm === "dijkstra" ? 0 : distance(nodes.get(id)!.point, nodes.get(end)!.point) / (profile === "shortest" ? 1 : 1.5);
+  heap.push({ id: start, d: heuristic(start), g: 0 });
+  let expanded = 0, relaxed = 0;
   const crowd = congestion(
     hour,
     context.at?.getMinutes() ?? new Date().getMinutes(),
+    context.at?.getDay(),
   );
   while (heap.a.length) {
     const cur = heap.pop()!;
-    if (cur.d !== dist.get(cur.id)) continue;
+    if (cur.g !== dist.get(cur.id)) continue;
+    expanded++;
     if (cur.id === end) break;
     for (const e of adj.get(cur.id) || []) {
       const other = e.from === cur.id ? e.to : e.from;
       const nd =
-        cur.d +
+        cur.g +
         weight(e, profile, hour, crowd, weather) +
         (profile === "shortest" ? 0 : context.edgeDelays?.get(e.id) || 0);
       if (nd < (dist.get(other) ?? Infinity)) {
+        relaxed++;
         dist.set(other, nd);
         prev.set(other, { id: cur.id, e });
-        heap.push({ id: other, d: nd });
+        heap.push({ id: other, d: nd + heuristic(other), g: nd });
       }
     }
   }
@@ -607,6 +625,7 @@ export function computeRoute(
   const result: Route = {
     nodes: ns,
     edges: es,
+    search: { algorithm: context.algorithm === "dijkstra" ? "Dijkstra" : "A*", expanded, relaxed, discovered: dist.size, milliseconds: performance.now() - started, cost: dist.get(end)! },
     distance: total,
     seconds: es.reduce(
       (s, e) =>

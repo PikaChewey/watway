@@ -93,3 +93,30 @@ Priority indoor routes now use a shared corridor/stair/landing/door model for re
 The MC entrance → MC 4020 and STC entrance → STC 0010 routes complete through that shared controller in end-to-end tests. MC floor-4 corridor extensions and the exact door anchor remain inferred; they are not a verified current floor plan. No STC basement-to-other-building tunnel was invented without source evidence. Elevators in the priority physical model are not implemented yet, so unsupported step-free routes are withheld.
 
 **Tunnels** is a dedicated underground view. Reference photographs for the SCH–AL tunnel and SLC 1120 are included with source links; tunnel colours and materials follow those references. Building labels are collision-filtered to prevent overlap.
+
+## Pitch demo: Stay dry, SCH → AL
+
+Open **Tunnels** (or **Tunnel demo** on Campus 3D) for the cutaway mesh overview. The featured route is a frozen, tested SCH → AL itinerary in `src/data/tunnel-pitch-route.json`, presented as a deliberate demo scenario.
+
+- **Play the pitch demo:** a guided walkthrough at 3× speed, about 50 seconds, using the same collision controller.
+- **Walk it yourself:** starts at the mapped SCH entrance facing the route. Use W/S to move forward/back, A/D to strafe, and drag to look.
+- **Take control:** pauses the guide without relocating you. Resume continues near your current route position.
+- **Featured route / Whole network:** changes only the overview camera framing.
+
+Tunnel walls remain opaque during walking. Tests cover the full frozen route and attempts to strafe through both sides of a tunnel wall. The demo does not verify present-day access or claim surveyed stair/interior dimensions.
+
+
+## Phone pitch demo
+
+Public demo: https://watway-campus-demo.vercel.app
+
+- **Maya Park** is a fictional CS 2A student living in REV. The day opens at 09:05 on a fixed Tuesday, with a winter weather scenario. Use the chapter strip to follow classes, coffee, study, PAC, Luma, the SCH–AL tunnel, WYGO, and home.
+- **MP** opens her profile; **My day** shows the full week. Demo plans are isolated from imported personal calendars.
+- **A* · Winter · Max-flow** opens the judge view. Change snow to dry to recompute travel costs, constrain MC–QNC to change the max-flow/min-cut result from 60 to 16 people/min, and compare class-change traffic against the quieter interval.
+- A* uses an admissible Euclidean lower bound and is checked against Dijkstra across route profiles. Search expansion/time figures are computed, not invented. Winter factors, coarse-network capacities, and pedestrian demand are illustrative model inputs.
+- **Tunnel demo → Play the pitch demo** follows the frozen 226 m physical SCH–AL path; **Take control** switches to touch movement with wall collisions. Room geometry is reconstructed. PAC routes stop at exterior access because its interior connection is not modeled.
+- Vercel serves the Vite build and the optional `/api/campus/live` and `/api/campus/event` handlers. Default demo operation needs no account or live feed.
+
+Mobile rendering removes duplicate facade shells/context buildings and disables dynamic shadows. The renderer uses logarithmic depth for campus-scale geometry. Touch walking has dedicated directional controls and separated playback controls.
+
+Validation: 35 automated checks, including A* optimality, seasonal costs, min-cut response, non-overlapping demo plans, chapter route connectivity, physical traversal, and tunnel wall collisions. Phone layouts inspected at 390×844.
