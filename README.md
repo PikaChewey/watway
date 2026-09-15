@@ -108,7 +108,7 @@ Tunnel walls remain opaque during walking. Tests cover the full frozen route and
 
 ## Phone pitch demo
 
-Public demo: https://watway-campus-demo.vercel.app
+Public demo: https://wat-way.vercel.app
 
 - **Maya Park** is a fictional CS 2A student living in REV. The day opens at 09:05 on a fixed Tuesday, with a winter weather scenario. Use the chapter strip to follow classes, coffee, study, PAC, Luma, the SCH–AL tunnel, WYGO, and home.
 - **MP** opens her profile; **My day** shows the full week. Demo plans are isolated from imported personal calendars.
