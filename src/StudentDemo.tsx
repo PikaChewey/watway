@@ -7,9 +7,10 @@ export function StudentStory({at,onChapter,onProfile,onTunnel}:{at:Date;onChapte
   const time=at.getHours()*60+at.getMinutes();
   const active=[...chapters].reverse().find(c=>time>=c.time) || chapters[0];
   return <section className="student-story">
-    <div className="student-story-heading"><button className="student-avatar" onClick={onProfile} aria-label="Meet Maya Park">MP</button><div><span className="eyebrow">FICTIONAL STUDENT · DEMO</span><h2>Maya’s Tuesday</h2><small>15 September · CS 2A · lives in REV</small></div><button className="student-profile-link" onClick={onProfile} aria-label="View student profile"><ChevronRight size={19}/></button></div>
+    <div className="student-story-heading"><button className="student-avatar" onClick={onProfile} aria-label="Meet Maya Park">MP</button><div><span className="eyebrow">FICTIONAL STUDENT · DEMO</span><h2>Maya’s Tuesday</h2><small>CS 2A · REV residence · Winter demo</small></div><button className="student-profile-link" onClick={onProfile} aria-label="View student profile"><ChevronRight size={19}/></button></div>
     <div className="student-chapters" aria-label="Follow Maya’s day">{chapters.map(c=><button key={c.id} aria-pressed={c.id===active.id} onClick={()=>onChapter(c)}><span>{String(Math.floor(c.time/60)).padStart(2,'0')}:{String(c.time%60).padStart(2,'0')}</span>{c.label}</button>)}</div>
     <p>{active.note}</p>
+    <div className="student-scene-footer"><select className="student-scene-select" aria-label="Jump to demo scene" value={active.id} onChange={e=>{const chapter=chapters.find(c=>c.id===e.target.value);if(chapter)onChapter(chapter);}}>{chapters.map((c,i)=><option value={c.id} key={c.id}>{i+1}/{chapters.length} · {c.label}</option>)}</select><span>SCENE {chapters.indexOf(active)+1} / {chapters.length}</span><button onClick={()=>onChapter(chapters[(chapters.indexOf(active)+1)%chapters.length])}>{chapters.indexOf(active)===chapters.length-1?'Restart day':`Next: ${chapters[chapters.indexOf(active)+1].label}`}<ArrowRight size={15}/></button></div>
     {active.id==='tunnel'&&<button className="primary" onClick={onTunnel}><Play size={16}/>Play Maya’s tunnel walk<ArrowRight size={16}/></button>}
   </section>;
 }

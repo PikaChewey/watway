@@ -607,6 +607,7 @@ export default function App() {
     setMode("orbit"); setIndoor(false); setVisualMode("realistic"); setTab("home");
     setSelected(null); setSelectedPlace(null); setSheet("half"); setDesktopHidden(false);
     setWeatherMode("snow"); setSeason("winter"); setProfile("weather");
+    body.current?.scrollTo({top:0,behavior:"smooth"});
     const place = resolveLocationId(chapter.from); if (place) map.current?.focus(place.point, 240);
   };
   const startPitch = (choice: "guided" | "manual") => {
@@ -726,7 +727,7 @@ export default function App() {
   ] as const;
   return (
     <div
-      className={`watway visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
+      className={`watway ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
     >
       {engineOpen && <AlgorithmPanel route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
       {studentProfileOpen && <StudentProfile onClose={() => setStudentProfileOpen(false)} onPersonal={() => {setDemoStudentActive(false); setStudentProfileOpen(false); setScrub(null); setFrom("SLC"); switchTab("day"); setVisualMode("realistic"); setMode("orbit"); setWeatherMode("live");}}/>}
