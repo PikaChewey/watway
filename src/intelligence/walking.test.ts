@@ -1,0 +1,6 @@
+import{test}from'node:test';import assert from'node:assert/strict';import{sampleWalkSurface,walkSurfaces,tunnelStart,stairWells}from'../navigation/walkWorld';
+test('a mapped staircase raises the walking height through its flight',()=>{const s=walkSurfaces.find(s=>s.kind==='stairs'&&s.building==='MC')!;assert.ok(s);let y=s.a[1];for(let i=0;i<=80;i++){const t=i/80;const p=sampleWalkSurface(s.a[0]+(s.b[0]-s.a[0])*t,s.a[2]+(s.b[2]-s.a[2])*t,y);assert.ok(p,`step ${i}`);y=p.height}assert.ok(y>s.a[1]+1.7)});
+test('the tunnel entry lies on an actual traversable tunnel surface',()=>{const start=tunnelStart();const p=sampleWalkSurface(start.point[0],start.point[2],start.point[1]);assert.ok(p);assert.equal(p.surface.kind,'tunnel');assert.ok(start.floor===0)});
+test('stairs cannot snap a ground-level player to an upper floor',()=>{const s=walkSurfaces.find(s=>s.kind==='stairs'&&s.a[1]>8)!;const p=sampleWalkSurface(s.a[0],s.a[2],.5);assert.ok(!p||Math.abs(p.height-.5)<=.65)});
+import{createWalkWorld}from'../navigation/walkWorld';
+test('walking surfaces produce valid batched render meshes',()=>{const group=createWalkWorld();assert.ok(group.children.length>=4);for(const mesh of group.children as any[]){assert.ok(mesh.geometry);assert.ok(mesh.geometry.attributes.position.count>0)}});

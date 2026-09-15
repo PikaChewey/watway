@@ -79,3 +79,9 @@ See [DATA-SOURCES.md](DATA-SOURCES.md). WATWay is an independent prototype, not 
 | `public/sw.js` | Production offline asset caching |
 
 Use a feature branch for changes and run the tests and production build before opening a pull request. Never commit credentials or personal calendars. Generated builds, scratch files, `.env`, and `node_modules` are ignored.
+
+## Physical-world update
+
+The map now includes 136 campus/residence entries, including REV, UW Place, Village 1, MKV, and CLV blocks, plus mapped building sub-parts. **Campus 3D** prioritizes consistent geometry; **Satellite** and **Terrain** are optional contextual views.
+
+Use **Walk a tunnel** or **Try stairs** to enter the mapped walking network. Stairs have actual step surfaces and landings; walking changes the player's height. W/S moves faster than A/D strafing, with normalized diagonal movement. Mapped stairwell positions and floor connections are used, but tread dimensions, stair orientation, and corridor construction remain approximations. This is not a surveyed indoor twin.

@@ -25,3 +25,11 @@ Public reference plans retain their original copyright and are not relicensed as
 - **Google Calendar:** User-authorized read-only Calendar API access through Google Identity Services. Access tokens remain in memory; personal event data is not committed or included in the public snapshots.
 
 Event title, time, and venue are reconciled across sources. Off-campus, expired, and unresolved public events are filtered. Explicitly announced UW events with a venue still pending can appear as campus-level events but cannot be routed until a location is known. Public event links can also be imported from Luma, Partiful, and WYGO when metadata is available. Private pages are not bypassed.
+
+## Physical campus and residence geometry
+
+The visual campus was extended with public OpenStreetMap geometry for REV, UW Place, Village 1, Mackenzie King Village, Columbia Lake Village North/South, and residence buildings. Some building codes share one continuous footprint; aliases retain those names without duplicating the geometry. The building catalog now contains 136 distinct entries. Building sub-parts preserve mapped footprint changes and level counts where available.
+
+The walkable tunnel paths and stairwell locations come from WATIsGrass. Stair flights, tread dimensions, switchback orientation, railings, and corridor wall heights are reconstructions at those mapped positions, not surveyed interior architecture. Free walking samples these surfaces for vertical movement. Exact access and interior geometry still need verification.
+
+Satellite and terrain views optionally request Esri basemap tiles, with attribution shown in the interface. Campus 3D uses the mapped geometry directly and does not require those imagery requests. Esri imagery credits: Esri, Vantor, Earthstar Geographics, and the GIS User Community.

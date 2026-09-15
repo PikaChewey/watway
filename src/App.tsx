@@ -1,3 +1,6 @@
+import { tunnelStart, stairWells } from "./navigation/walkWorld";
+import type { VisualMode } from "./visual/basemaps";
+import { Satellite, Mountain } from "lucide-react";
 import { useCampusSearch } from "./intelligence/useCampusSearch";
 import {
   useState,
@@ -226,6 +229,8 @@ class SceneBoundary extends Component<
   }
 }
 export default function App() {
+  const [visualMode, setVisualMode] = useState<VisualMode>("realistic"),
+    [imageryStatus, setImageryStatus] = useState("Loading imagery…");
   const [tab, setTab] = useState<"home" | "explore" | "day" | "campus">("home"),
     [sheet, setSheet] = useState<"peek" | "half" | "full">("half"),
     [desktopHidden, setDesktopHidden] = useState(false);
@@ -577,6 +582,7 @@ export default function App() {
     );
   };
   const walk = (preview = false, m: CameraMode = "first") => {
+    setVisualMode("realistic");
     setMode(m);
     if (mobile) setSheet("peek");
     if (preview) {
@@ -584,7 +590,28 @@ export default function App() {
       setPlaying(true);
     } else setPlaying(false);
   };
+  const walkNetwork = (kind: "tunnel" | "stairs") => {
+    const spawn =
+      kind === "tunnel"
+        ? tunnelStart()
+        : stairWells.find((w) => w.building === "MC")!;
+    setVisualMode("realistic");
+    setSelected(spawn.building);
+    setIndoor(true);
+    setFloor(spawn.floor);
+    setMode("first");
+    setPlaying(false);
+    setProgress(0);
+    setSheet("peek");
+    map.current?.experience(kind);
+    setToast(
+      kind === "tunnel"
+        ? "Walk through the mapped tunnel. Use WASD or the touch controls."
+        : "Walk up the staircase. Turn across the landing for the next flight. Stairwell position is mapped; treads are reconstructed.",
+    );
+  };
   const enterIndoor = () => {
+    setVisualMode("realistic");
     const id = selected || "DC";
     setSelected(id);
     setIndoor(true);
@@ -757,6 +784,13 @@ export default function App() {
               showCrowds={crowds}
               onReady={() => setReady(true)}
               onPosition={setPosition}
+              onWalkContext={(building, floor) => {
+                setSelected(building);
+                setFloor(floor);
+                setIndoor(true);
+              }}
+              visualMode={visualMode}
+              onImageryStatus={setImageryStatus}
               quality={quality}
               timeOfDay={at.getHours() + at.getMinutes() / 60}
               flowScale={campus.flowScale}
@@ -797,25 +831,27 @@ export default function App() {
             <span className="search-shortcut">⌘ K</span>
           )}
         </div>
-        <div className="map-category-chips">
+        <div className="world-mode-switch" aria-label="Map appearance">
           {[
-            ["study", BookOpen, "Study"],
-            ["food", Coffee, "Coffee"],
-            ["recreation", Activity, "Gyms"],
-            ["washroom", Accessibility, "Washrooms"],
+            ["realistic", Box, "Campus 3D"],
+            ["satellite", Satellite, "Satellite"],
+            ["terrain", Mountain, "Terrain"],
           ].map(([id, I, label]) => {
             const Icon = I as any;
             return (
               <button
-                className={category === id && tab === "explore" ? "active" : ""}
+                aria-label={label as string}
+                className={visualMode === id ? "active" : ""}
                 key={id as string}
                 onClick={() => {
-                  switchTab("explore");
-                  setCategory(id as string);
+                  setVisualMode(id as VisualMode);
+                  setMode(id === "realistic" ? "orbit" : "map");
+                  setIndoor(false);
+                  setPlaying(false);
                 }}
               >
                 <Icon size={15} />
-                {label as string}
+                <span>{label as string}</span>
               </button>
             );
           })}
@@ -905,6 +941,18 @@ export default function App() {
               ))}
           </div>
         )}
+        {visualMode === "realistic" && mode !== "first" && mode !== "third" && (
+          <div className="walk-experiences">
+            <button onClick={() => walkNetwork("tunnel")}>
+              <LogIn size={16} />
+              Walk a tunnel
+            </button>
+            <button onClick={() => walkNetwork("stairs")}>
+              <Footprints size={16} />
+              Try stairs
+            </button>
+          </div>
+        )}
         <div className="map-view-actions">
           <button
             className={`indoor-toggle ${indoor ? "active" : ""}`}
@@ -945,7 +993,22 @@ export default function App() {
             })}
           </div>
         </div>
+        <div className="imagery-status">
+          {visualMode !== "realistic" && imageryStatus !== "Imagery ready" && (
+            <span>{imageryStatus}</span>
+          )}
+        </div>
         <div className="map-credit">
+          <a
+            href="https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9"
+            target="_blank"
+            rel="noreferrer"
+          >
+            {visualMode === "terrain"
+              ? "Basemap © Esri and contributors"
+              : "Imagery © Esri · Vantor · Earthstar"}
+          </a>
+          <span>·</span>
           <a href={sources.map} target="_blank" rel="noreferrer">
             © OpenStreetMap
           </a>
@@ -2039,6 +2102,7 @@ export default function App() {
                   ["washroom", Accessibility, "Washrooms"],
                   ["water", GlassWater, "Water"],
                   ["printer", Printer, "Print"],
+                  ["residence", Building2, "Residences"],
                   ["recreation", Activity, "Active"],
                   ["transit", TrainFront, "Transit"],
                 ].map(([id, I, label]) => {
@@ -2055,7 +2119,7 @@ export default function App() {
                   );
                 })}
               </div>
-              {category === "all" ? (
+              {category === "all" || category === "residence" ? (
                 <>
                   {saved.length > 0 && (
                     <>
@@ -2087,25 +2151,30 @@ export default function App() {
                     <h2>Campus essentials</h2>
                     <span>{buildings.length} BUILDINGS</span>
                   </div>
-                  {buildings.map((b) => (
-                    <button
-                      className="building-list-row"
-                      key={b.id}
-                      onClick={() => selectBuilding(b.id)}
-                    >
-                      <span>{b.id === "LIB" ? "DP" : b.id}</span>
-                      <div>
-                        <strong>{b.shortName}</strong>
-                        <small>
-                          {b.floors} floors ·{" "}
-                          {campus.states[b.id]?.occupancy < 45
-                            ? "usually quieter"
-                            : "activity estimated"}
-                        </small>
-                      </div>
-                      <ChevronRight size={16} />
-                    </button>
-                  ))}
+                  {buildings
+                    .filter(
+                      (b) =>
+                        category !== "residence" || b.category === "residence",
+                    )
+                    .map((b) => (
+                      <button
+                        className="building-list-row"
+                        key={b.id}
+                        onClick={() => selectBuilding(b.id)}
+                      >
+                        <span>{b.id === "LIB" ? "DP" : b.id}</span>
+                        <div>
+                          <strong>{b.shortName}</strong>
+                          <small>
+                            {b.floors} floors ·{" "}
+                            {campus.states[b.id]?.occupancy < 45
+                              ? "usually quieter"
+                              : "activity estimated"}
+                          </small>
+                        </div>
+                        <ChevronRight size={16} />
+                      </button>
+                    ))}
                 </>
               ) : (
                 <>
