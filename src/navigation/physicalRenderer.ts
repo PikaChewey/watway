@@ -408,9 +408,9 @@ export function createPhysicalScene() {
         if (walking) {
           obj.visible =
             obj.visible &&
-            (obj.userData.stairs
+            (obj.userData.tunnel || (obj.userData.stairs
               ? Math.abs(obj.userData.floor - floor) <= 1
-              : obj.userData.floor === floor);
+              : obj.userData.floor === floor));
           obj.material.transparent = false;
           obj.material.opacity = 1;
           obj.material.depthWrite = true;
