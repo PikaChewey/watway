@@ -1009,7 +1009,7 @@ export default function App() {
                 ? "The underground, in wireframe."
                 : "The underground network."}
             </strong>
-            <small>Wire lattice · gold marks the featured path</small>
+            <small>Wireframe buildings · gold marks the tunnel route</small>
             <div className="tunnel-frame-switch">
               <button
                 className={tunnelFrame === "demo" ? "active" : ""}

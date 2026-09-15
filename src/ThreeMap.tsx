@@ -413,6 +413,28 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       buildingGroup.add(group);
       buildingMeshes.set(b.id, group);
     }
+    const wireBuildings=new THREE.Group();
+    wireBuildings.visible=false;
+    scene.add(wireBuildings);
+    const wireNear=new THREE.LineBasicMaterial({color:"#6a93ae",transparent:true,opacity:.44,depthWrite:false,blending:THREE.AdditiveBlending});
+    const wireFar=new THREE.LineBasicMaterial({color:"#42637f",transparent:true,opacity:.26,depthWrite:false,blending:THREE.AdditiveBlending});
+    for(const b of buildings){
+      const material=["AL","SCH","TC","ML","EV1","HH"].includes(b.id)?wireNear:wireFar;
+      const source=buildingMeshes.get(b.id)!;
+      source.updateMatrixWorld(true);
+      source.traverse(obj=>{
+        if(!(obj instanceof THREE.Mesh))return;
+        const geometry=new THREE.EdgesGeometry(obj.geometry,25);
+        geometry.applyMatrix4(obj.matrixWorld);
+        wireBuildings.add(new THREE.LineSegments(geometry,material));
+      });
+      const parts=mappedBuildingParts.filter(part=>part.building===b.id);
+      const volumes=parts.length>1?parts:[{polygon:b.polygon,bottom:0,height:b.height}];
+      const bands:number[]=[];
+      for(const part of volumes)for(let y=part.bottom+3.8;y<part.height-.5;y+=3.8)
+        for(let i=1;i<part.polygon.length;i++){const a=part.polygon[i-1],p=part.polygon[i];bands.push(a[0],y,a[1],p[0],y,p[1]);}
+      if(bands.length){const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(bands,3));wireBuildings.add(new THREE.LineSegments(geometry,material));}
+    }
     // Deterministic landscaping, placed away from the mapped structures and walking network.
     let seed = 42;
     const random = () => {
@@ -1076,7 +1098,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
           Math.abs(tmp.x) < 0.98 &&
           Math.abs(tmp.y) < 0.97 &&
           (tunnelMode
-            ? tunnelBuildings.includes(b.id)
+            ? tunnelBuildings.includes(b.id) || (far < 350 && important.includes(b.id))
             : far < 350 ||
               important.includes(b.id) ||
               b.id === current.selected);
@@ -1210,6 +1232,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         crane.visible=false; construction.visible=false; crowd.visible=false; vehicles.visible=false;
         particles.visible=false; basemaps.group.visible=false;
       } else particles.visible=current.weather.precipitation>0;
+      wireBuildings.visible=current.visualMode === "tunnels";
       if (current.visualMode === "tunnels") {
         buildingGroup.visible = false;
         bridges.visible = false;

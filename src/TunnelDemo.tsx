@@ -25,7 +25,7 @@ export default function TunnelDemo({
         Below the surface.
       </h1>
       <p className="tunnel-demo-intro">
-        A wire lattice of Waterloo’s underground connections.
+        Wireframe buildings above. A glowing tunnel network below.
       </p>
       <div className="demo-endpoints">
         <div>
