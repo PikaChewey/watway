@@ -14,3 +14,14 @@ Public source data was retrieved on September 15, 2026.
 - **Optional semantic model:** [Xenova/all-MiniLM-L6-v2](https://huggingface.co/Xenova/all-MiniLM-L6-v2), loaded through Transformers.js when enabled.
 
 Public reference plans retain their original copyright and are not relicensed as application code. Map geometry is community-maintained and is not a current engineering survey. The app distinguishes mapped interiors from schematic coverage, and estimates from live weather.
+
+## Proactive campus update
+
+- **WATIsGrass:** [Ricky Qin and contributors](https://github.com/rickyqin005/WATIsGrass), community hallway/bridge/tunnel geometry. The source dataset and original GPL-3.0 license are retained in `public/data/watisgrass/`; the source copy used by the renderer is `src/data/watisgrass.json`. WatWay adds closure exclusions and labels approximate connections.
+- **Published fitness occupancy:** [Warrior Athletics Facility Occupancy](https://warrior.uwaterloo.ca/FacilityOccupancy). Read server-side and cached for two minutes; displayed timestamps indicate retrieval time, not an independent sensor measurement.
+- **University events:** [Waterloo Events](https://uwaterloo.ca/events), using public event detail pages. Page footers are excluded from location extraction.
+- **WYGO:** [Public WYGO event calendar](https://wygo.world/o/wygo).
+- **Luma:** [Public Waterloo Tech Week calendar](https://luma.com/waterlootechweek). Individual listings may point to their original event-hosting provider.
+- **Google Calendar:** User-authorized read-only Calendar API access through Google Identity Services. Access tokens remain in memory; personal event data is not committed or included in the public snapshots.
+
+Event title, time, and venue are reconciled across sources. Off-campus, expired, and unresolved public events are filtered. Explicitly announced UW events with a venue still pending can appear as campus-level events but cannot be routed until a location is known. Public event links can also be imported from Luma, Partiful, and WYGO when metadata is available. Private pages are not bypassed.

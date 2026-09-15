@@ -1,95 +1,2558 @@
-import {useState,useEffect,useRef,useMemo,lazy,Suspense,Component,type ReactNode}from'react';
-import {Search,ArrowUpRight,ArrowRight,ArrowLeft,MapPin,Navigation,Compass,Layers,Sun,CloudRain,CloudSnow,CloudFog,Moon,ChevronDown,ChevronRight,Plus,Minus,LocateFixed,Footprints,PersonStanding,Box,Route as RouteIcon,Clock,ShieldCheck,Wind,Droplets,CalendarDays,Settings2,X,ArrowUpDown,Play,Pause,RotateCcw,ExternalLink,Info,GraduationCap,Coffee,BookOpen,Accessibility,Sparkles,Send,Check,Volume2,VolumeX,Download,Upload,Bookmark,Building2,Printer,GlassWater,Bike,TrainFront,Car,Heart,Utensils,ArrowUp,ArrowDown,Keyboard,Maximize,Minimize,Construction,CheckCircle2,LoaderCircle,PanelLeftClose,PanelLeftOpen,Flag,LogIn,LogOut,MoveUpRight}from'lucide-react';
-import {buildings,buildingById,places,placeById,resolveLocation,categoryNames,sources,project,closure,findRoom}from'./data/campus';
-import './indoor';
-import {indoorCoverage,dcRooms,indoorFeatures}from'./indoor';
-import {computeRoute,minutes,profileLabels,routePoint,graphStats,addLocation}from'./routing';
-import {searchCampus,askCampus,type SearchResult,type AssistantResult}from'./semantic';
-import {useWeather,effectiveWeather,weatherDescription}from'./weather';
-import type{RouteProfile,WeatherMode,ClassEvent,Point,Place,Route,Weather}from'./types';
-import type{MapHandle,CameraMode}from'./ThreeMap';
-const ThreeMap=lazy(()=>import('./ThreeMap'));
-const iconFor=(cat:string)=>({study:BookOpen,food:Coffee,washroom:Accessibility,printer:Printer,water:GlassWater,bike:Bike,transit:TrainFront,parking:Car,health:Heart,microwave:Utensils,room:GraduationCap}[cat]||Building2);
-function IconButton({icon:Icon,label,onClick,active=false,children}:{icon:any;label:string;onClick:()=>void;active?:boolean;children?:ReactNode}){return <button className={`icon-button ${active?'active':''}`} onClick={onClick} title={label} aria-label={label}><Icon size={19}/>{children}</button>}
-class SceneBoundary extends Component<{children:ReactNode},{error:boolean}>{state={error:false};static getDerivedStateFromError(){return{error:true}}render(){return this.state.error?<div className="map-error"><Box size={40}/><h2>3D view couldn’t start</h2><p>Search, campus information, and directions still work. Reload with WebGL enabled to explore the map.</p><button onClick={()=>location.reload()}>Reload 3D view</button></div>:this.props.children}}
-function storage<T>(key:string,fallback:T):T{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}}
-const defaultClasses:ClassEvent[]=[{id:'demo-1',title:'CS 135',location:'room-DC-1350',start:'11:30',end:'12:50',days:[1,2,3,4,5]},{id:'demo-2',title:'MATH 135',location:'room-MC-2065',start:'14:30',end:'15:20',days:[1,2,3,4,5]},{id:'demo-3',title:'Study session',location:'poi-0',start:'16:00',end:'17:00',days:[1,2,3,4,5]}];
-const timeLabel=(t:string)=>{const[h,m]=t.split(':').map(Number);return`${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`};
-export default function App(){
- const [tab,setTab]=useState<'explore'|'directions'|'schedule'|'assistant'>('explore');const[query,setQuery]=useState(''),[searchOpen,setSearchOpen]=useState(false),[category,setCategory]=useState('all'),[selected,setSelected]=useState<string|null>(null),[selectedPlace,setSelectedPlace]=useState<string|null>(null);
- const[from,setFrom]=useState('SLC'),[to,setTo]=useState('room-DC-1350'),[profile,setProfile]=useState<RouteProfile>('fastest'),[routeVisible,setRouteVisible]=useState(false);
- const[mode,setMode]=useState<CameraMode>('orbit'),[indoor,setIndoor]=useState(false),[floor,setFloor]=useState(1),[progress,setProgress]=useState(0),[playing,setPlaying]=useState(false),[speed,setSpeed]=useState(1),[voice,setVoice]=useState(false);
- const[layersOpen,setLayersOpen]=useState(false),[weatherOpen,setWeatherOpen]=useState(false),[weatherMode,setWeatherMode]=useState<WeatherMode>('live'),[night,setNight]=useState(false),[season,setSeason]=useState('summer'),[showPaths,setShowPaths]=useState(true),[showLabels,setShowLabels]=useState(true),[showConnections,setShowConnections]=useState(true),[showCrowds,setShowCrowds]=useState(false),[about,setAbout]=useState(false),[ready,setReady]=useState(false),[collapsed,setCollapsed]=useState(false),[toast,setToast]=useState(''),[position,setPosition]=useState<Point>([0,0,0]);
- const[classes,setClasses]=useState<ClassEvent[]>(()=>storage('watway-classes',defaultClasses)),[saved,setSaved]=useState<string[]>(()=>storage('watway-saved',[])),[classForm,setClassForm]=useState(false),[classTitle,setClassTitle]=useState(''),[classRoom,setClassRoom]=useState('MC 2065'),[classTime,setClassTime]=useState('10:30'),[classEnd,setClassEnd]=useState('11:20'),[classDays,setClassDays]=useState<number[]>([1,3,5]);
- const[ask,setAsk]=useState(''),[chat,setChat]=useState<{query:string;result:AssistantResult}[]>([]),[thinking,setThinking]=useState(false),[modelStatus,setModelStatus]=useState('Campus intelligence'),[modelProgress,setModelProgress]=useState(0);
- const map=useRef<MapHandle>(null),searchInput=useRef<HTMLInputElement>(null),importInput=useRef<HTMLInputElement>(null),assistantBottom=useRef<HTMLDivElement>(null);const weather=useWeather();const effective=useMemo(()=>effectiveWeather(weather,weatherMode),[weather,weatherMode]);
- const[scheduleDay,setScheduleDay]=useState(new Date().getDay());const[clock,setClock]=useState(new Date());useEffect(()=>{const i=setInterval(()=>setClock(new Date()),30000);return()=>clearInterval(i)},[]);
- const route=useMemo(()=>computeRoute(from,to,profile,effective),[from,to,profile,effective]);
- const alternatives=useMemo(()=>['fastest','indoor','accessible'].map(p=>({profile:p as RouteProfile,route:computeRoute(from,to,p as RouteProfile,effective)})),[from,to,effective]);
- const viewClasses=classes.filter(c=>c.days.includes(scheduleDay)).sort((a,b)=>a.start.localeCompare(b.start));const nowMins=clock.getHours()*60+clock.getMinutes();const todaysClasses=classes.filter(c=>c.days.includes(clock.getDay())).sort((a,b)=>a.start.localeCompare(b.start));const nextClass=todaysClasses.find(c=>Number(c.end.split(':')[0])*60+Number(c.end.split(':')[1])>nowMins);const nextRoute=useMemo(()=>nextClass?computeRoute(from,nextClass.location,profile,effective):null,[nextClass?.location,from,profile,effective]);const leaveBy=nextClass?(()=>{const[h,m]=nextClass.start.split(':').map(Number);const leave=h*60+m-minutes(nextRoute)-3;return`${String(Math.floor(leave/60)).padStart(2,'0')}:${String((leave%60+60)%60).padStart(2,'0')}`})():null;
- const selectedBuilding=selected?buildingById[selected]:null;const currentPlace=selectedPlace?placeById[selectedPlace]:null;const results=useMemo(()=>searchCampus(query),[query]);
- const workerRef=useRef<Worker|null>(null),pendingSemantic=useRef(new Map<number,(scores:Record<string,number>)=>void>()),seq=useRef(0);
- useEffect(()=>{try{localStorage.setItem('watway-classes',JSON.stringify(classes));localStorage.setItem('watway-saved',JSON.stringify(saved))}catch{}},[classes,saved]);
- useEffect(()=>{document.querySelector('.panel-content')?.scrollTo({top:0})},[tab,selected]);
- useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(''),4500);return()=>clearTimeout(id)},[toast]);
- useEffect(()=>{if(!playing||!route)return;let prev=performance.now();let frame=0;const loop=(now:number)=>{const dt=(now-prev)/1000;prev=now;setProgress(p=>{const n=Math.min(1,p+dt*speed*10/Math.max(route.seconds,1));if(n>=1){setPlaying(false);setToast('You’ve arrived. Preview complete.')}return n});frame=requestAnimationFrame(loop)};frame=requestAnimationFrame(loop);return()=>cancelAnimationFrame(frame)},[playing,speed,route]);
- useEffect(()=>{setProgress(0);setPlaying(false)},[from,to,profile]);useEffect(()=>{if(!playing||!route)return;const at=routePoint(route,progress);const edge=route.edges[at.edgeIndex],n=route.nodes[at.edgeIndex+1];const isInside=!!n?.building&&edge?.kind!=='outdoor';if(isInside){setSelected(n.building!);setFloor(n.floor??1);setIndoor(true)}else setIndoor(false)},[playing,route,Math.floor(progress*500)]);
- useEffect(()=>{if(!voice||!playing||!route)return;const i=routePoint(route,progress).edgeIndex;const step=route.steps.find(s=>s.edgeStart===i);if(step&&'speechSynthesis'in window){const utterance=new SpeechSynthesisUtterance(step.title);speechSynthesis.cancel();speechSynthesis.speak(utterance)}},[voice,playing,route,Math.floor(progress*100)]);
- useEffect(()=>{const handler=(e:KeyboardEvent)=>{if(e.key==='Escape'){setSearchOpen(false);setAbout(false);setLayersOpen(false);setWeatherOpen(false);setClassForm(false);if(mode==='first'||mode==='third')setMode('orbit');setPlaying(false)}if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setCollapsed(false);searchInput.current?.focus();setSearchOpen(true)}if((e.target as HTMLElement).matches('input,textarea,select'))return;if(e.key==='1')setMode('map');if(e.key==='2')setMode('third');if(e.key==='3')setMode('first');if(e.key.toLowerCase()==='m')setMode(m=>m==='map'?'orbit':'map')};window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler)},[mode]);
- const selectBuilding=(id:string,place?:string)=>{setSelected(id);setSelectedPlace(place||null);setSearchOpen(false);setQuery('');setTab('explore');setCollapsed(false);setIndoor(false);setFloor(place?placeById[place]?.floor||1:1);map.current?.focus(buildingById[id].center,210)};
- const startRoute=(destination:string,origin=from)=>{setFrom(origin);setTo(destination);setRouteVisible(true);setTab('directions');setCollapsed(false);setSearchOpen(false);const dest=resolveLocation(destination);if(dest)setSelected(dest.building);setIndoor(false);setPlaying(false);setProgress(0);setMode('orbit');if(dest){const orig=resolveLocation(origin);const point:Point=orig?[(orig.point[0]+dest.point[0])/2,0,(orig.point[2]+dest.point[2])/2]:dest.point;map.current?.focus(point,Math.max(230,orig?Math.hypot(orig.point[0]-dest.point[0],orig.point[2]-dest.point[2])*1.1:400))}};
- const inspectIndoor=()=>{if(!selected)setSelected('DC');setIndoor(true);setFloor(1);map.current?.focus(buildingById[selected||'DC'].center,140);setMode('orbit')};
- const locate=()=>{if(!navigator.geolocation){setToast('Location is unavailable in this browser. Choose a starting building.');return}setToast('Finding your location…');navigator.geolocation.getCurrentPosition(pos=>{const point=project(pos.coords.latitude,pos.coords.longitude);if(Math.hypot(point[0],point[2])>2500){setToast('You’re outside the mapped campus. Choose a campus starting point.');return}addLocation('my-location',point);setFrom('my-location');map.current?.focus(point,160);setToast(`Location found · accuracy about ${Math.round(pos.coords.accuracy)} m`)},()=>setToast('Location wasn’t available. Set your starting point in Directions.'),{timeout:8000,enableHighAccuracy:true})};
- const initializeModel=()=>{if(workerRef.current)return;setModelStatus('Loading local AI');try{const worker=new Worker(new URL('./semantic.worker.ts',import.meta.url),{type:'module'});workerRef.current=worker;worker.onmessage=e=>{if(e.data.type==='ready')setModelStatus('Local AI ready');if(e.data.type==='progress')setModelProgress(e.data.progress);if(e.data.type==='error'){setModelStatus('Campus intelligence');setToast('Local model unavailable. Campus search and grounded assistance still work.')}if(e.data.type==='results'){pendingSemantic.current.get(e.data.id)?.(e.data.scores);pendingSemantic.current.delete(e.data.id)}};worker.postMessage({type:'init',documents:places.filter(p=>p.category!=='room').map(p=>({id:p.id,text:`${p.name}. ${p.category}. ${p.tags.join(' ')}. ${p.description}`}))})}catch{setModelStatus('Campus intelligence')}};
- const submitAsk=async(text=ask)=>{if(!text.trim())return;setAsk('');setThinking(true);setTab('assistant');let scores:Record<string,number>|undefined;if(modelStatus==='Local AI ready'&&workerRef.current){const id=++seq.current;scores=await Promise.race([new Promise<Record<string,number>>(r=>{pendingSemantic.current.set(id,r);workerRef.current!.postMessage({type:'query',id,text})}),new Promise<undefined>(r=>setTimeout(()=>r(undefined),5000))])}const result=await askCampus(text,from,nextClass?.location,effective,scores);setChat(c=>[...c,{query:text,result}]);setThinking(false);setTimeout(()=>assistantBottom.current?.scrollIntoView({behavior:'smooth'}),50)};
- const addClass=()=>{const room=findRoom(classRoom)||searchCampus(classRoom,1)[0];if(!classTitle.trim()||!room||!classDays.length||classEnd<=classTime){setToast('Add a title, valid campus location, days, and an end time after the start.');return}setClasses(c=>[...c,{id:crypto.randomUUID(),title:classTitle.trim(),location:room.id,start:classTime,end:classEnd,days:classDays}]);setClassForm(false);setClassTitle('');setToast('Class added to your schedule')};
- const exportSchedule=()=>{const blob=new Blob([JSON.stringify(classes,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='watway-schedule.json';a.click();URL.revokeObjectURL(url)};
- const importSchedule=async(file?:File)=>{if(!file)return;try{const data=JSON.parse(await file.text());if(!Array.isArray(data)||data.some(c=>typeof c.title!=='string'||!resolveLocation(c.location)||!/^\d{2}:\d{2}$/.test(c.start)||!/^\d{2}:\d{2}$/.test(c.end)||!Array.isArray(c.days)))throw Error();setClasses(data);setToast('Schedule imported')}catch{setToast('That file is not a valid WATWay schedule. Export a schedule to see the format.')}};
- const WeatherIcon=effective.code>=71&&effective.code<=77?CloudSnow:effective.precipitation>0?CloudRain:effective.code===45?CloudFog:Sun;
- const filteredPlaces=category==='all'?places.filter(p=>saved.includes(p.id)):places.filter(p=>p.category===category);
- return <div className={`app ${collapsed?'sidebar-collapsed':''}`}>
-  <header className="topbar"><a className="brand" href="#" onClick={e=>{e.preventDefault();setSelected(null);setIndoor(false);setTab('explore');setMode('orbit');map.current?.reset()}}><div className="brand-symbol"><span>W</span><i/></div><div className="brand-name">WAT<span>Way</span><small>UNIVERSITY OF WATERLOO</small></div></a><div className="header-divider"/><div className="campus-switch"><span className="live-dot"/>Main campus<ChevronDown size={14}/></div><div className="topbar-right"><button className="weather-pill" onClick={()=>{setWeatherOpen(!weatherOpen);setLayersOpen(false)}}><WeatherIcon size={19}/><strong>{Math.round(effective.temperature)}°</strong><span>{weatherMode!=='live'?'Preview':weather.status==='live'?weatherDescription(weather.code):weather.status==='loading'?'Loading weather':'Offline weather'}</span><ChevronDown size={13}/></button><span className="header-date">{clock.toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric'})}</span><button className="avatar-button" title="About WATWay" onClick={()=>setAbout(true)}>W<small>β</small></button></div></header>
-  <div className="workspace"><aside className="sidebar"><div className="sidebar-inner"><div className="search-wrap"><Search size={19}/><input ref={searchInput} aria-label="Search campus" value={query} onFocus={()=>setSearchOpen(true)} onChange={e=>{setQuery(e.target.value);setSearchOpen(true)}} placeholder="Search buildings, rooms, anything…"/><kbd>⌘ K</kbd>{query&&<button className="bare" onClick={()=>{setQuery('');setSearchOpen(false)}} aria-label="Clear search"><X size={16}/></button>}</div>
-  <nav className="main-tabs" aria-label="Main navigation">{[['explore',Compass,'Explore'],['directions',RouteIcon,'Directions'],['schedule',CalendarDays,'My day'],['assistant',Sparkles,'Ask WAT']].map(([id,Icon,label])=><button key={id as string} className={tab===id?'active':''} onClick={()=>{setTab(id as any);setSearchOpen(false);if(id==='directions')setRouteVisible(true)}}>{(()=>{const I=Icon as any;return <I size={18}/>})()}<span>{label as string}</span></button>)}</nav>
-  {searchOpen?<section className="panel-content search-results"><div className="section-heading"><span>{query?'SEARCH RESULTS':'QUICK DESTINATIONS'}</span><button className="bare" onClick={()=>setSearchOpen(false)} aria-label="Close search"><X size={16}/></button></div>{results.length?results.map(r=><button className="result-row" key={r.id} onClick={()=>selectBuilding(r.building,r.place?.id)}><span className={`result-icon ${r.category}`}>{(()=>{const I=iconFor(r.category);return<I size={20}/>})()}</span><span><strong>{r.name}</strong><small>{r.subtitle}</small></span><ChevronRight size={16}/></button>):<div className="empty-state"><Search size={28}/><h3>No matching places</h3><p>Try “DC 1350”, “Davis”, “quiet study”, or a building code.</p></div>}<button className="ask-search" onClick={()=>{setSearchOpen(false);submitAsk(query||'Find a quiet study space near me')}}><Sparkles size={17}/>Ask WAT about {query?'this':'campus'}<ArrowRight size={16}/></button></section>:
-  tab==='explore'?<div className="panel-content">
-   {selectedBuilding?<><button className="back-button" onClick={()=>{setSelected(null);setSelectedPlace(null);setIndoor(false);map.current?.reset()}}><ArrowLeft size={15}/>Explore campus</button><div className="building-hero"><div className="building-code">{selectedBuilding.id==='LIB'?'DP':selectedBuilding.id}</div><span className="building-category">{categoryNames[currentPlace?.category||selectedBuilding.category]}</span><button className={`save-building ${saved.includes(selectedPlace||selected!)?'saved':''}`} aria-label="Save place" onClick={()=>setSaved(s=>s.includes(selectedPlace||selected!)?s.filter(x=>x!==(selectedPlace||selected!)):[...s,selectedPlace||selected!])}><Bookmark size={19}/></button><h1>{currentPlace?.name||selectedBuilding.shortName}</h1><div className="building-meta"><span><Layers size={14}/>{currentPlace?`Floor ${currentPlace.floor}`:`${selectedBuilding.floors} floors`}</span><span><MapPin size={14}/>Main campus</span></div></div><p className="description">{currentPlace?.description||selectedBuilding.description}</p><div className="building-actions"><button className="primary" onClick={()=>startRoute(selectedPlace||selected!)}><Navigation size={17}/>Directions</button><button className="secondary" onClick={()=>{setFrom(selectedPlace||selected!);setToast('Starting point updated');setTab('directions');setRouteVisible(true)}}>Start here</button></div><button className="indoor-card" onClick={inspectIndoor}><span className="indoor-card-icon"><Box size={24}/></span><span><strong>Explore inside</strong><small>{selected==='DC'?'128 mapped spaces · doors & corridors':selected==='MC'?'Public floor plans available':'Building footprint & floor overview'}</small></span><ArrowUpRight size={19}/></button>{selected==='MC'&&<div className="source-plans">{[2,3,6].map(f=><a href={`/floorplans/MC-${f}.${f===6?'pdf':'png'}`} target="_blank" rel="noreferrer" key={f}>MC floor {f}<ExternalLink size={13}/></a>)}</div>}
-   <div className="section-heading"><span>INSIDE {selectedBuilding.id}</span><small>{places.filter(p=>p.building===selected&&p.category!=='room').length} places</small></div>{places.filter(p=>p.building===selected&&p.category!=='room').slice(0,10).map(p=><PlaceRow key={p.id} place={p} onClick={()=>{setSelectedPlace(p.id);setFloor(p.floor||1);map.current?.focus(p.point,110)}} onRoute={()=>startRoute(p.id)}/>)}<div className="data-note"><Info size={15}/><span>{selected==='DC'?'Ground floor uses community-mapped room geometry. Other floors and connections need verification.':'Interior placement is approximate unless a source plan is shown.'} <a href={sources.accessibility} target="_blank" rel="noreferrer">Accessibility details <ExternalLink size={11}/></a></span></div><a className="text-link" href={sources.food} target="_blank" rel="noreferrer">Check current opening hours<ExternalLink size={14}/></a></>:
-   <><div className="welcome"><div className="eyebrow">A LITTLE LESS LOST.</div><h1>Make campus<br/>your own<span>.</span></h1><p>Your next class. Your favourite corner.<br/>A better way between them.</p></div><div className="quick-categories">{[['study',BookOpen,'Study'],['food',Coffee,'Food'],['washroom',Accessibility,'Washrooms'],['transit',TrainFront,'Transit']].map(([id,I,label])=>{const Icon=I as any;return<button key={id as string} className={category===id?'active':''} onClick={()=>setCategory(category===id?'all':id as string)}><Icon size={20}/><span>{label as string}</span></button>})}</div>
-   {category!=='all'?<><div className="section-heading"><span>{categoryNames[category].toUpperCase()}</span><button className="bare text-link" onClick={()=>setCategory('all')}>Clear</button></div>{filteredPlaces.map(p=><PlaceRow key={p.id} place={p} onClick={()=>selectBuilding(p.building,p.id)} onRoute={()=>startRoute(p.id)}/>)}<label className="more-categories">More places<select value={category} onChange={e=>setCategory(e.target.value)}>{Object.entries(categoryNames).filter(([k])=>k!=='room'&&k!=='academic').map(([k,n])=><option key={k} value={k}>{n}</option>)}</select></label></>:
-   <>{nextClass&&<div className="next-class"><div className="card-eyebrow"><span><CalendarDays size={14}/>UP NEXT</span><small>{classes.some(c=>c.id.startsWith('demo'))?'SAMPLE SCHEDULE':''}</small></div><div className="next-class-main"><span className="course-icon"><GraduationCap size={24}/></span><div><h3>{nextClass.title}</h3><p>{resolveLocation(nextClass.location)?.name} <span>· {timeLabel(nextClass.start)}</span></p></div></div><div className="leave-by"><span><Clock size={14}/>Leave by <strong>{leaveBy&&timeLabel(leaveBy)}</strong></span><button onClick={()=>startRoute(nextClass.location)}>{minutes(nextRoute)} min<ArrowRight size={16}/></button></div></div>}
-   <button className="ask-feature" onClick={()=>{setTab('assistant');setAsk('Find a quiet study space with outlets within 5 minutes of my next class')}}><div className="sparkle-tile"><Sparkles size={23}/></div><div><strong>A campus that gets you.</strong><span>“Find a quiet spot before my next class”</span></div><ArrowUpRight size={18}/></button>
-   <div className="section-heading"><span>CAMPUS ESSENTIALS</span><button className="bare" title="View all buildings" onClick={()=>{setQuery('');setSearchOpen(true)}}><ArrowUpRight size={17}/></button></div><div className="essentials">{['DC','SLC','LIB','MC'].map(id=>{const b=buildingById[id];return<button key={id} onClick={()=>selectBuilding(id)}><span className={`essential-symbol ${id.toLowerCase()}`}>{id==='LIB'?'DP':id}</span><span><strong>{b.shortName}</strong><small>{id==='DC'?'Library · food · lecture halls':id==='SLC'?'Food · student life · study':id==='LIB'?'Quiet study · library': 'Lecture halls · mathematics'}</small></span><ChevronRight size={15}/></button>})}</div>
-   {!!saved.length&&<><div className="section-heading"><span>SAVED PLACES</span></div>{saved.map(id=>{const p=resolveLocation(id);return p?<button className="saved-row" key={id} onClick={()=>selectBuilding(p.building,placeById[id]?id:undefined)}><Bookmark size={15}/>{p.name}<ChevronRight size={14}/></button>:null})}</>}
-   <button className="campus-notice" onClick={()=>{map.current?.focus(closure.point,170);setToast(closure.detail)}}><Construction size={18}/><span><strong>M4 construction</strong><small>Updated routes around the math quad</small></span><ChevronRight size={16}/></button></>}
-  </>}
-  </div>:tab==='directions'?<div className="panel-content route-panel"><div className="panel-title"><div><div className="eyebrow">LET’S GET YOU THERE</div><h1>Your way across campus.</h1></div><button className="bare" title="Clear route" onClick={()=>{setRouteVisible(false);setPlaying(false);setTab('explore')}}><X size={18}/></button></div><div className="route-inputs"><span className="route-input-markers"><i/><b/><MapPin size={17}/></span><div><LocationInput label="Starting point" value={from} onChange={setFrom}/><LocationInput label="Destination" value={to} onChange={setTo}/></div><button className="swap-button" aria-label="Swap start and destination" onClick={()=>{setFrom(to);setTo(from)}}><ArrowUpDown size={18}/></button></div><div className="origin-note"><LocateFixed size={13}/><button onClick={locate}>Use my location</button><span>Walking · times are estimates</span></div><div className="route-profiles">{Object.entries(profileLabels).map(([id,label])=><button key={id} className={profile===id?'active':''} onClick={()=>setProfile(id as RouteProfile)}>{id==='accessible'?<Accessibility size={13}/>:id==='indoor'?<Building2 size={13}/>:id==='weather'?<CloudRain size={13}/>:null}{label}</button>)}</div>
-   {route?<><div className="route-summary"><div><span className="route-duration">{minutes(route)}<small> min</small></span><span className="route-distance">{Math.round(route.distance)} m · walking</span></div><span className="route-badge"><span/>{profileLabels[profile]}</span></div><div className="route-metrics"><span><Building2 size={16}/><strong>{route.indoorPercent}%</strong> indoors</span><span><Footprints size={16}/><strong>{route.stairs}</strong> flights</span>{route.elevatorWait>0?<span><Clock size={16}/>{route.elevatorWait}s lift wait</span>:<span><Wind size={16}/>{Math.round(route.outdoorDistance)}m outside</span>}</div>{effective.precipitation>0&&<div className="weather-route-note"><CloudRain size={17}/><span>{profile==='weather'||profile==='indoor'?'Sheltered connections are prioritised.':'Rain is expected. Try Weather-smart to reduce exposure.'}</span></div>}
-   <div className="route-actions"><button className="primary" onClick={()=>{setMode('third');setProgress(0);setPlaying(true)}}><Play size={17} fill="currentColor"/>Preview walk</button><button className="secondary" onClick={()=>{setMode('first');setProgress(0);setPlaying(true)}}><PersonStanding size={18}/>First person</button></div>
-   <div className="section-heading"><span>TURN BY TURN</span><button className="bare" onClick={()=>setVoice(!voice)} title={voice?'Mute voice':'Enable voice'}>{voice?<Volume2 size={17}/>:<VolumeX size={17}/>}</button></div><ol className="directions-list">{route.steps.map((step,i)=>{const active=playing&&routePoint(route,progress).edgeIndex>=step.edgeStart&&routePoint(route,progress).edgeIndex<=step.edgeEnd;return<li key={i} className={active?'current':''}><button onClick={()=>{setProgress(route.edges.slice(0,step.edgeStart).reduce((s,e)=>s+e.distance,0)/route.distance);map.current?.focus(step.point,100)}}><span className={`step-icon ${step.kind}`}>{step.kind==='elevator'?<ArrowUpDown size={17}/>:step.kind==='stairs'?<Footprints size={17}/>:step.kind==='entrance'?<LogIn size={17}/>:step.kind==='bridge'||step.kind==='tunnel'?<Building2 size={17}/>:<ArrowUp size={17}/>}</span><span><strong>{step.title}</strong><small>{step.detail}</small></span><em>{Math.round(step.distance)} m</em></button></li>})}<li className="arrival"><Flag size={18}/><strong>Arrive at {resolveLocation(to)?.name}</strong></li></ol><div className="data-note"><Info size={15}/><span>{profile==='accessible'?'Step-free preference excludes mapped stairs and known steep links. Elevator status, door access, and slopes are not verified live.':'Indoor connections and entrance approaches may be approximate. Follow campus signs, especially near construction.'}</span></div></>:<div className="empty-state"><RouteIcon size={32}/><h3>No connected route found</h3><p>Try a nearby building entrance or a different route preference.</p></div>}
-  </div>:tab==='schedule'?<div className="panel-content"><div className="panel-title"><div><div className="eyebrow">LESS RUSH. MORE READY.</div><h1>My day</h1></div><button className="icon-button" aria-label="Add class" onClick={()=>setClassForm(true)}><Plus size={20}/></button></div><div className="day-strip">{['S','M','T','W','T','F','S'].map((d,i)=><button aria-label={['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][i]} onClick={()=>setScheduleDay(i)} className={scheduleDay===i?'today':''} key={i}><span>{d}</span><strong>{new Date(clock.getTime()+(i-clock.getDay())*86400000).getDate()}</strong></button>)}</div>{classes.some(c=>c.id.startsWith('demo'))&&<div className="sample-note"><Info size={15}/><span>A sample day to try. Add your classes or <button onClick={()=>setClasses([])}>clear the sample</button>.</span></div>}<div className="section-heading"><span>{['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][scheduleDay]}</span><small>{viewClasses.length} events</small></div>{viewClasses.length?viewClasses.map(c=>{const r=computeRoute(from,c.location,profile,effective);const start=c.start.split(':').map(Number);const leave=start[0]*60+start[1]-minutes(r)-3;return<div className={`schedule-card ${c.id===nextClass?.id?'upcoming':''}`} key={c.id}><div className="schedule-time">{timeLabel(c.start)}<span>{timeLabel(c.end)}</span></div><div><div className="schedule-card-top"><h3>{c.title}</h3><button className="bare" title="Remove class" onClick={()=>setClasses(s=>s.filter(x=>x.id!==c.id))}><X size={14}/></button></div><p>{resolveLocation(c.location)?.name}</p><small><Clock size={12}/>Leave {timeLabel(`${Math.floor(leave/60)}:${String(leave%60).padStart(2,'0')}`)} · 3 min buffer</small><button onClick={()=>startRoute(c.location)}>Get there · {minutes(r)} min<ArrowRight size={14}/></button></div></div>}):<div className="empty-state"><CalendarDays size={32}/><h3>Your day is open</h3><p>Add a class to get walking times and a little breathing room.</p></div>}<button className="add-class-button" onClick={()=>setClassForm(true)}><Plus size={17}/>Add a class or event</button><div className="schedule-tools"><button onClick={exportSchedule}><Download size={15}/>Export</button><button onClick={()=>importInput.current?.click()}><Upload size={15}/>Import JSON</button><input hidden ref={importInput} type="file" accept=".json" onChange={e=>importSchedule(e.target.files?.[0])}/></div><p className="footnote">Saved on this device. Leave-by times use your selected starting point, route preference, and weather.</p></div>:
-  <div className="panel-content assistant-panel"><div className="panel-title"><div><div className="eyebrow">YOUR CAMPUS COMPANION</div><h1>Ask WAT<span className="gold-dot">.</span></h1></div><span className="ai-symbol"><Sparkles size={24}/></span></div><p className="assistant-intro">A place to go, a little less rain, a quiet corner. Tell me what you need.</p><button className="ai-status" onClick={initializeModel}><span className={modelStatus==='Local AI ready'?'status-dot':'neutral-dot'}/>{modelStatus}{modelStatus==='Loading local AI'?` · ${Math.round(modelProgress)}%`:modelStatus==='Local AI ready'?' · on this device':' · enable local AI'}<Info size={13}/></button>{!chat.length&&<div className="prompt-suggestions">{['Find a quiet study space with outlets within 5 minutes of my next class','Get me from SLC to E5 and keep me dry','Where can I grab coffee near MC?','Take me to my next class without stairs'].map(t=><button key={t} onClick={()=>submitAsk(t)}><Sparkles size={14}/>{t}<ArrowUpRight size={15}/></button>)}</div>}{chat.map((c,i)=><div className="chat-pair" key={i}><div className="user-message">{c.query}</div><div className="assistant-message"><Sparkles size={18}/><div><p>{c.result.answer}</p>{!!c.result.filters.length&&<div className="query-filters">{c.result.filters.map(f=><span key={f}><Check size={11}/>{f}</span>)}</div>}{c.result.results.map(r=><button className="recommendation" key={r.id} onClick={()=>startRoute(r.id)}><span><strong>{r.name}</strong><small>{r.reason}</small></span><ArrowRight size={17}/></button>)}{c.result.route&&<button className="primary" onClick={()=>{setProfile(c.result.route!.profile);startRoute(c.result.route!.to,c.result.route!.from)}}>Show my route<ArrowRight size={16}/></button>}</div></div></div>)}{thinking&&<div className="thinking"><LoaderCircle className="spin" size={17}/>Finding a way that fits…</div>}<div ref={assistantBottom}/><form className="ask-input" onSubmit={e=>{e.preventDefault();submitAsk()}}><textarea aria-label="Ask WAT" value={ask} onChange={e=>setAsk(e.target.value)} placeholder="Ask anything about getting around…" rows={2} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitAsk()}}}/><button aria-label="Send question" disabled={thinking||!ask.trim()}><ArrowUp size={19}/></button></form><p className="footnote">Grounded in the campus model. Optional local AI improves semantic matching; answers and route constraints stay tied to mapped data.</p></div>}
-  <footer className="sidebar-footer"><span><span className="tiny-w">W</span>Built for the way you move.</span><button onClick={()=>setAbout(true)} aria-label="Data sources and about"><Info size={16}/></button></footer></div></aside>
-  <main className={`map-area ${mode==='first'||mode==='third'?'game-mode':''}`} aria-label="Campus map"><SceneBoundary><Suspense fallback={<div className="map-loading"><div className="loading-mark">W</div><h2>Getting campus ready</h2><p>Loading buildings, paths, and places…</p></div>}><ThreeMap ref={map} selected={selected} onSelect={selectBuilding} mode={mode} route={routeVisible?route:null} progress={progress} playing={playing} indoor={indoor} floor={floor} weather={effective} night={night} season={season} showPaths={showPaths} showLabels={showLabels} showConnections={showConnections} showCrowds={showCrowds} onReady={()=>setReady(true)} onPosition={setPosition}/></Suspense></SceneBoundary>
-  <div className="map-top-left"><IconButton icon={collapsed?PanelLeftOpen:PanelLeftClose} label={collapsed?'Open navigation panel':'Hide navigation panel'} onClick={()=>setCollapsed(!collapsed)}/><div className="map-location-label"><span className="live-dot"/>{indoor?`${selected} · Floor ${floor===0?'B':floor}`:'WATERLOO, ON'}<span>{indoor?(selected==='DC'&&floor===1?'MAPPED INTERIOR':'FLOOR OVERVIEW'):'MAIN CAMPUS'}</span></div></div>
-  <div className="map-top-right"><button className={`map-chip ${indoor?'active':''}`} onClick={()=>{if(indoor){setIndoor(false);map.current?.reset()}else{if(!selected)setSelected('DC');inspectIndoor()}}}><Layers size={16}/>{indoor?'Exit interior':'Explore indoors'}</button><button className="map-chip round-chip" onClick={()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.()}} aria-label="Toggle fullscreen"><Maximize size={17}/></button></div>
-  {indoor&&<div className="floor-picker"><span>FLOOR</span>{Array.from({length:Math.min(selectedBuilding?.floors||3,10)+1},(_,i)=>i).reverse().map(f=><button className={floor===f?'active':''} key={f} onClick={()=>{setFloor(f);map.current?.focus([selectedBuilding?.center[0]||0,(f-1)*3.8,selectedBuilding?.center[2]||0],140)}}>{f===0?'B':f}</button>)}</div>}
-  {indoor&&<div className="interior-status"><ShieldCheck size={16}/><span>{selected==='DC'&&floor===1?'Davis ground floor · mapped walls, doors & room outlines':'Floor overview · interior geometry incomplete'}</span>{selected==='MC'&&[2,3,6].includes(floor)&&<a href={`/floorplans/MC-${floor}.${floor===6?'pdf':'png'}`} target="_blank" rel="noreferrer">View source plan<ExternalLink size={12}/></a>}</div>}
-  <div className="map-right-controls"><button className="compass" aria-label="Rotate map" onClick={()=>map.current?.rotate()}><span>N</span><Navigation size={21} fill="#d9ae3f"/></button><div className="control-stack"><IconButton icon={Plus} label="Zoom in" onClick={()=>map.current?.zoom(.78)}/><IconButton icon={Minus} label="Zoom out" onClick={()=>map.current?.zoom(1.28)}/></div><IconButton icon={LocateFixed} label="My location" onClick={locate}/><IconButton icon={Layers} label="Map layers and seasons" active={layersOpen} onClick={()=>{setLayersOpen(!layersOpen);setWeatherOpen(false)}}/><IconButton icon={RotateCcw} label="Reset view" onClick={()=>{setMode('orbit');map.current?.reset()}}/></div>
-  {layersOpen&&<div className="map-popover layers-popover"><div className="popover-heading"><h3>Make it your map</h3><button className="bare" aria-label="Close map layers" onClick={()=>setLayersOpen(false)}><X size={17}/></button></div>{[['Building labels',showLabels,setShowLabels],['Walking paths',showPaths,setShowPaths],['Indoor connections',showConnections,setShowConnections],['Activity estimate',showCrowds,setShowCrowds]].map(([name,value,setter])=><label className="toggle-row" key={name as string}><span>{name as string}</span><input type="checkbox" checked={value as boolean} onChange={e=>(setter as any)(e.target.checked)}/><i/></label>)}<div className="popover-divider"/><label className="toggle-row"><span><Moon size={16}/>Night mode</span><input type="checkbox" checked={night} onChange={e=>setNight(e.target.checked)}/><i/></label><label className="season-select">Season<select value={season} onChange={e=>setSeason(e.target.value)}><option value="spring">Spring</option><option value="summer">Summer</option><option value="autumn">Autumn</option><option value="winter">Winter</option></select></label><p className="footnote">Activity is a time-of-day estimate, not live pedestrian tracking.</p></div>}
-  {weatherOpen&&<div className="map-popover weather-popover"><div className="popover-heading"><h3>Campus weather</h3><button className="bare" aria-label="Close weather" onClick={()=>setWeatherOpen(false)}><X size={17}/></button></div><div className="weather-large"><WeatherIcon size={45}/><strong>{Math.round(effective.temperature)}°<small>Feels like {Math.round(effective.apparent)}°</small></strong></div><div className="weather-details"><span><Wind size={16}/>{Math.round(effective.wind)} km/h</span><span><Droplets size={16}/>{effective.precipitation} mm</span></div><div className="weather-hours">{weather.hourly.slice(0,5).map(h=><div key={h.time}><small>{h.time.slice(11,16)}</small><span>{Math.round(h.temperature)}°</span><small>{h.rain}% rain</small></div>)}</div><div className="section-heading"><span>TRY DIFFERENT CONDITIONS</span></div><div className="weather-modes">{[['live','Live',LocateFixed],['sun','Sun',Sun],['rain','Rain',CloudRain],['snow','Snow',CloudSnow],['fog','Fog',CloudFog]].map(([id,label,I])=>{const Icon=I as any;return<button className={weatherMode===id?'active':''} key={id as string} onClick={()=>setWeatherMode(id as WeatherMode)}><Icon size={18}/>{label as string}</button>})}</div><p className="footnote">{weatherMode==='live'?(weather.status==='live'?`Open-Meteo · updated ${new Date(weather.fetchedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'Weather unavailable. Showing cached or sample conditions.'):'Preview conditions affect the scene and Weather-smart routes.'}</p></div>}
-  {(mode==='first'||mode==='third')&&<><div className="game-hud"><span><PersonStanding size={18}/>{mode==='first'?'First-person exploration':'Third-person exploration'}</span><button onClick={()=>{setMode('orbit');setPlaying(false)}}><X size={15}/>Exit</button></div>{mode==='first'&&<div className="crosshair"/>}{!playing&&progress===0&&<GameMinimap position={position} indoor={indoor&&selected==='DC'&&floor===1} route={routeVisible?route:null}/>}<div className="game-help"><Keyboard size={16}/><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move <span>·</span> drag to look <span>·</span> <kbd>Shift</kbd> run <span>·</span> <kbd>M</kbd> map</span></div><div className="touch-move">{[['w',ArrowUp],['a',ArrowLeft],['s',ArrowDown],['d',ArrowRight]].map(([key,I])=>{const Icon=I as any;return<button key={key as string} aria-label={`Move ${key}`} onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);map.current?.move(key as string,true)}} onPointerUp={()=>map.current?.move(key as string,false)} onPointerCancel={()=>map.current?.move(key as string,false)}><Icon size={20}/></button>})}</div></>}
-  {(playing||progress>0)&&routeVisible&&route&&<div className="playback"><div className="playback-info"><span className="preview-dot"/><strong>{progress>=1?'Arrived':'Route preview'}</strong><span>{Math.round(progress*100)}%</span><button className="bare" aria-label="Close preview" onClick={()=>{setPlaying(false);setProgress(0);setMode('orbit')}}><X size={16}/></button></div><div className="playback-controls"><button aria-label={playing?'Pause preview':'Play preview'} onClick={()=>{if(progress>=1)setProgress(0);setPlaying(!playing)}}>{playing?<Pause size={18}/>:<Play size={18}/>}</button><input type="range" min="0" max="1" step="0.001" aria-label="Route preview progress" value={progress} onChange={e=>setProgress(Number(e.target.value))}/><button className="speed-button" onClick={()=>setSpeed(s=>s===1?2:s===2?4:1)}>{speed}×</button></div></div>}
-  <div className="map-bottom-left"><div className="map-legend"><span><i className="legend-outdoor"/>Outdoor</span><span><i className="legend-indoor"/>Indoor</span><span className="map-scale">50 m<i/></span></div><div className="map-attribution"><a href={sources.map} target="_blank" rel="noreferrer">© OpenStreetMap contributors</a><span>·</span><button onClick={()=>setAbout(true)}>Data & accuracy</button></div></div>
-  <div className="camera-switch" aria-label="Camera mode">{[['map',Compass,'Map'],['orbit',Box,'3D'],['third',Footprints,'Follow'],['first',PersonStanding,'Walk']].map(([id,I,label])=>{const Icon=I as any;return<button aria-label={label as string} className={mode===id?'active':''} key={id as string} onClick={()=>setMode(id as CameraMode)}><Icon size={17}/><span>{label as string}</span></button>})}</div>
-  {!selected&&!playing&&mode==='orbit'&&<div className="map-tip"><span className="tip-dot"/>Click a building. Find your next favourite place.</div>}
-  </main></div>
-  {toast&&<div className="toast" role="status"><Info size={17}/>{toast}<button className="bare" onClick={()=>setToast('')} aria-label="Dismiss notification"><X size={14}/></button></div>}
-  {about&&<div className="modal-backdrop" onClick={()=>setAbout(false)}><section className="modal about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close about" onClick={()=>setAbout(false)}><X size={21}/></button><div className="eyebrow">BUILT FOR WATERLOO</div><h2 id="about-title">A campus you can understand.</h2><p>WATWay is an independent campus navigator. It combines public geography, mapped interiors, and route-aware campus assistance.</p><div className="about-stats"><span><strong>{buildings.length}</strong>campus buildings</span><span><strong>{dcRooms.length}</strong>mapped interior spaces</span><span><strong>{graphStats.nodes.toLocaleString()}</strong>navigation nodes</span></div><h3>What’s real, and what’s estimated</h3><ul className="accuracy-list"><li><CheckCircle2 size={17}/><span><strong>Mapped geography</strong>Building locations: Waterloo’s public dataset. Footprints, outdoor paths, and Davis room polygons: OpenStreetMap.</span></li><li><Info size={17}/><span><strong>Indoor coverage</strong>Davis ground-floor outlines and doors are community mapped. Other interiors, some entrances, vertical circulation, and connection approaches are schematic.</span></li><li><Clock size={17}/><span><strong>Estimates, not live sensors</strong>Walking time, crowds, and elevator waits are estimates. Opening hours, lift outages, free seats, and temporary closures are not live.</span></li><li><Construction size={17}/><span><strong>Known construction</strong>Removed MC–DC and MC–M3 bridges are excluded. Local signs take priority near M4.</span></li><li><Sparkles size={17}/><span><strong>Campus intelligence</strong>Local semantic AI can rank places by meaning. Structured constraints and graph routing calculate results. No paid API key is needed.</span></li></ul><div className="source-links">{[['Building dataset',sources.buildings],['OpenStreetMap',sources.map],['Accessibility',sources.accessibility],['Construction update',sources.closure],['Library study spaces',sources.library],['Open-Meteo',sources.weather]].map(([n,url])=><a href={url} target="_blank" rel="noreferrer" key={n}>{n}<ExternalLink size={13}/></a>)}</div><p className="footnote">Public data retrieved September 15, 2026. Independent prototype; not affiliated with or endorsed by the University of Waterloo.</p></section></div>}
-  {classForm&&<div className="modal-backdrop" onClick={()=>setClassForm(false)}><form className="modal class-modal" role="dialog" aria-modal="true" aria-labelledby="class-title" onClick={e=>e.stopPropagation()} onSubmit={e=>{e.preventDefault();addClass()}}><button type="button" className="modal-close" aria-label="Close class form" onClick={()=>setClassForm(false)}><X size={20}/></button><div className="eyebrow">MAKE ROOM FOR YOUR DAY</div><h2 id="class-title">Add a class or event</h2><label>Course or event<input required value={classTitle} onChange={e=>setClassTitle(e.target.value)} placeholder="e.g. CS 135"/></label><label>Room or building<input required value={classRoom} onChange={e=>setClassRoom(e.target.value)} placeholder="e.g. DC 1350"/></label><div className="form-row"><label>Starts<input type="time" required value={classTime} onChange={e=>setClassTime(e.target.value)}/></label><label>Ends<input type="time" required value={classEnd} onChange={e=>setClassEnd(e.target.value)}/></label></div><label>Repeats on</label><div className="weekday-picker">{['Su','Mo','Tu','We','Th','Fr','Sa'].map((d,i)=><button type="button" key={i} className={classDays.includes(i)?'active':''} onClick={()=>setClassDays(s=>s.includes(i)?s.filter(x=>x!==i):[...s,i])}>{d}</button>)}</div><button className="primary" type="submit"><Plus size={17}/>Add to my day</button></form></div>}
- </div>
+import { useCampusSearch } from "./intelligence/useCampusSearch";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  lazy,
+  Suspense,
+  Component,
+  type ReactNode,
+} from "react";
+import {
+  Search,
+  Navigation,
+  MapPin,
+  ChevronRight,
+  ArrowRight,
+  ArrowLeft,
+  Plus,
+  Minus,
+  X,
+  Clock,
+  CalendarDays,
+  Compass,
+  Layers,
+  Sun,
+  CloudRain,
+  CloudSnow,
+  CloudFog,
+  Moon,
+  Footprints,
+  PersonStanding,
+  Box,
+  Route as RouteIcon,
+  LocateFixed,
+  RotateCcw,
+  Play,
+  Pause,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ExternalLink,
+  Info,
+  Check,
+  Bookmark,
+  Building2,
+  Coffee,
+  BookOpen,
+  Accessibility,
+  TrainFront,
+  Printer,
+  GlassWater,
+  Bike,
+  Heart,
+  Utensils,
+  GraduationCap,
+  Construction,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Keyboard,
+  Wind,
+  Droplets,
+  RefreshCw,
+  Link2,
+  Activity,
+  ChevronDown,
+  SlidersHorizontal,
+  ShieldCheck,
+  TrendingUp,
+  WifiOff,
+  Maximize,
+  Flag,
+  LogIn,
+  Bell,
+  Map,
+  Settings2,
+  Volume2,
+  VolumeX,
+  Download,
+} from "lucide-react";
+import {
+  buildings,
+  buildingById,
+  places,
+  placeById,
+  resolveLocation,
+  categoryNames,
+  sources,
+  project,
+  closure,
+  findRoom,
+} from "./data/campus";
+import "./indoor";
+import { dcRooms } from "./indoor";
+import {
+  computeRoute,
+  minutes,
+  profileLabels,
+  routePoint,
+  addLocation,
+  graphStats,
+} from "./routing";
+import { searchCampus } from "./semantic";
+import { useWeather, effectiveWeather, weatherDescription } from "./weather";
+import { useCampusFeed } from "./intelligence/useCampusFeed";
+import {
+  reconcileEvents,
+  resolveCampusLocation,
+  resolveLocationId,
+} from "./intelligence/locations";
+import {
+  watWayState,
+  weeklyEvents,
+  gapRecommendations,
+  estimateFlow,
+  buildingMinCut,
+} from "./intelligence/state";
+import type { CampusEvent, FacilityReading } from "./intelligence/types";
+import type {
+  RouteProfile,
+  WeatherMode,
+  ClassEvent,
+  Point,
+  Place,
+  Route,
+} from "./types";
+import type { MapHandle, CameraMode } from "./ThreeMap";
+import CalendarPanel from "./CalendarPanel";
+const ThreeMap = lazy(() => import("./ThreeMap"));
+function stored<T>(key: string, fallback: T): T {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null") ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
-function PlaceRow({place,onClick,onRoute}:{place:Place;onClick:()=>void;onRoute:()=>void}){const Icon=iconFor(place.category);return<div className="place-row"><button onClick={onClick}><span className={`result-icon ${place.category}`}><Icon size={19}/></span><span><strong>{place.name}</strong><small>{place.building} · {place.floor?`Floor ${place.floor}`:'Outdoors'}{place.confidence==='approximate'?' · approximate':''}</small></span></button><button className="place-route" aria-label={`Directions to ${place.name}`} onClick={onRoute}><ArrowUpRight size={17}/></button></div>}
-function LocationInput({label,value,onChange}:{label:string;value:string;onChange:(id:string)=>void}){const[editing,setEditing]=useState(false),[q,setQ]=useState('');const found=searchCampus(q,6);return<div className="location-field"><label>{label}</label><input aria-label={label} value={editing?q:resolveLocation(value)?.name||value} onFocus={()=>{setEditing(true);setQ('')}} onChange={e=>setQ(e.target.value)} onBlur={()=>setTimeout(()=>setEditing(false),180)} placeholder="Search a building or room" onKeyDown={e=>{if(e.key==='Enter'&&found[0]){onChange(found[0].id);setEditing(false);e.currentTarget.blur()}}}/>{editing&&<div className="location-options">{found.map(r=><button key={r.id} onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(r.id);setEditing(false)}}><strong>{r.name}</strong><small>{r.subtitle}</small></button>)}{!found.length&&<p>No matching campus location</p>}</div>}</div>}
-
-function GameMinimap({position,indoor,route}:{position:Point;indoor:boolean;route:Route|null}){const radius=indoor?65:150;const x=position[0]-radius,z=position[2]-radius;return <div className="game-minimap"><div><Compass size={12}/><span>{indoor?'INDOOR POSITION':'CAMPUS POSITION'}</span><b>N</b></div><svg viewBox={`${x} ${z} ${radius*2} ${radius*2}`} aria-label="Minimap showing your position"><rect x={x} y={z} width={radius*2} height={radius*2} fill="#1b343a"/>{(indoor?dcRooms.map(r=>({id:r.id,polygon:r.points})):buildings).map(b=><polygon key={b.id} points={b.polygon.map(p=>p.join(',')).join(' ')} fill="#385357" stroke="#6c8c83" strokeWidth={indoor?.3:1}/>) }{route&&<polyline points={route.nodes.map(n=>`${n.point[0]},${n.point[2]}`).join(' ')} fill="none" stroke="#f3cc5a" strokeWidth={indoor?1:2}/>}<circle cx={position[0]} cy={position[2]} r={radius*.045} fill="#f3cc5a" stroke="#fff5c9" strokeWidth={radius*.013}/><circle cx={position[0]} cy={position[2]} r={radius*.095} fill="none" stroke="#f3cc5a" strokeWidth={radius*.007} opacity=".45"/></svg><small>Exploration position · not GPS</small></div>}
+const defaultClasses: ClassEvent[] = [
+  {
+    id: "demo-1",
+    title: "CS 135 · Functional programming",
+    location: "room-DC-1350",
+    start: "11:30",
+    end: "12:50",
+    days: [1, 2, 3, 4, 5],
+  },
+  {
+    id: "demo-2",
+    title: "MATH 135 · Algebra",
+    location: "room-MC-2065",
+    start: "14:30",
+    end: "15:20",
+    days: [1, 2, 3, 4, 5],
+  },
+  {
+    id: "demo-3",
+    title: "Study at Davis",
+    location: "poi-0",
+    start: "16:00",
+    end: "17:00",
+    days: [1, 2, 3, 4, 5],
+  },
+];
+const formatTime = (date: Date | string) =>
+  new Date(date).toLocaleTimeString("en-CA", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Toronto",
+  });
+const iconFor = (cat: string) =>
+  ({
+    study: BookOpen,
+    food: Coffee,
+    washroom: Accessibility,
+    printer: Printer,
+    water: GlassWater,
+    bike: Bike,
+    transit: TrainFront,
+    health: Heart,
+    microwave: Utensils,
+    room: GraduationCap,
+    recreation: Activity,
+  })[cat] || Building2;
+function IconButton({
+  icon: Icon,
+  label,
+  onClick,
+  active = false,
+}: {
+  icon: any;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  return (
+    <button
+      className={`map-control ${active ? "active" : ""}`}
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <Icon size={20} />
+    </button>
+  );
+}
+class SceneBoundary extends Component<
+  { children: ReactNode },
+  { error: boolean }
+> {
+  state = { error: false };
+  static getDerivedStateFromError() {
+    return { error: true };
+  }
+  render() {
+    return this.state.error ? (
+      <div className="map-error">
+        <Box size={36} />
+        <h2>3D view unavailable</h2>
+        <p>Your campus cards and directions still work.</p>
+        <button className="primary" onClick={() => location.reload()}>
+          Reload the map
+        </button>
+      </div>
+    ) : (
+      this.props.children
+    );
+  }
+}
+export default function App() {
+  const [tab, setTab] = useState<"home" | "explore" | "day" | "campus">("home"),
+    [sheet, setSheet] = useState<"peek" | "half" | "full">("half"),
+    [desktopHidden, setDesktopHidden] = useState(false);
+  const [query, setQuery] = useState(""),
+    [searchOpen, setSearchOpen] = useState(false),
+    [category, setCategory] = useState("all"),
+    [selected, setSelected] = useState<string | null>(null),
+    [selectedPlace, setSelectedPlace] = useState<string | null>(null);
+  const [from, setFrom] = useState(() => stored("watway-origin", "SLC")),
+    [to, setTo] = useState("room-DC-1350"),
+    [profile, setProfile] = useState<RouteProfile>(() =>
+      stored("watway-profile", "fastest"),
+    ),
+    [routeVisible, setRouteVisible] = useState(false);
+  const [mode, setMode] = useState<CameraMode>("orbit"),
+    [indoor, setIndoor] = useState(false),
+    [floor, setFloor] = useState(1),
+    [playing, setPlaying] = useState(false),
+    [progress, setProgress] = useState(0),
+    [speed, setSpeed] = useState(1),
+    [voice, setVoice] = useState(false),
+    [position, setPosition] = useState<Point>([0, 0, 0]);
+  const [classes, setClasses] = useState<ClassEvent[]>(() =>
+      stored("watway-classes", defaultClasses),
+    ),
+    [calendarEvents, setCalendarEvents] = useState<CampusEvent[]>(() =>
+      stored("watway-personal-events", []),
+    ),
+    [importedEvents, setImportedEvents] = useState<CampusEvent[]>(() =>
+      stored("watway-imported-events", []),
+    ),
+    [saved, setSaved] = useState<string[]>(() => stored("watway-saved", []));
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>("live"),
+    [nightOverride, setNightOverride] = useState<boolean | null>(null),
+    [season, setSeason] = useState("autumn"),
+    [labels, setLabels] = useState(true),
+    [paths, setPaths] = useState(true),
+    [connections, setConnections] = useState(true),
+    [crowds, setCrowds] = useState(true),
+    [quality, setQuality] = useState<"auto" | "high" | "battery">(() =>
+      stored("watway-quality", "auto"),
+    );
+  const [layersOpen, setLayersOpen] = useState(false),
+    [weatherOpen, setWeatherOpen] = useState(false),
+    [timelineOpen, setTimelineOpen] = useState(false),
+    [about, setAbout] = useState(false),
+    [toast, setToast] = useState(""),
+    [ready, setReady] = useState(false),
+    [offline, setOffline] = useState(!navigator.onLine),
+    [originEdit, setOriginEdit] = useState(false),
+    [eventLink, setEventLink] = useState(""),
+    [eventLoading, setEventLoading] = useState(false);
+  const [now, setNow] = useState(new Date()),
+    [scrub, setScrub] = useState<number | null>(null),
+    [mobile, setMobile] = useState(window.innerWidth < 760);
+  const map = useRef<MapHandle>(null),
+    search = useRef<HTMLInputElement>(null),
+    body = useRef<HTMLDivElement>(null),
+    drag = useRef(0),
+    lastSpoken = useRef(-1);
+  const weather = useWeather();
+  const {
+    feed,
+    loading: feedLoading,
+    error: feedError,
+    refresh,
+  } = useCampusFeed();
+  const at = useMemo(() => {
+    const d = new Date(now);
+    if (scrub !== null) d.setHours(Math.floor(scrub / 60), scrub % 60, 0, 0);
+    return d;
+  }, [now, scrub]);
+  const effective = useMemo(() => {
+    const base = effectiveWeather(weather, weatherMode);
+    if (scrub === null || weatherMode !== "live") return base;
+    const forecast = weather.hourly.find(
+      (h) =>
+        h.time.slice(0, 13) ===
+        `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}T${String(at.getHours()).padStart(2, "0")}`,
+    );
+    return forecast
+      ? {
+          ...base,
+          temperature: forecast.temperature,
+          code: forecast.code,
+          precipitation: forecast.rain > 50 ? 1 : 0,
+        }
+      : base;
+  }, [weather, weatherMode, scrub, at]);
+  const publicEvents = useMemo(
+    () =>
+      reconcileEvents([...(feed?.events || []), ...importedEvents], {
+        now,
+        days: 30,
+      }),
+    [feed, importedEvents, now],
+  );
+  const personal = useMemo(
+    () => [
+      ...weeklyEvents(classes, at),
+      ...reconcileEvents(calendarEvents, { personal: true, now: at, days: 45 })
+        .events,
+    ],
+    [classes, calendarEvents, at],
+  );
+  const campus = useMemo(
+    () =>
+      watWayState(from, at, personal, feed, effective, profile, scrub === null),
+    [from, at, personal, feed, effective, profile, scrub],
+  );
+  const flow = useMemo(
+    () => estimateFlow(at, effective),
+    [
+      at.getDay(),
+      at.getHours(),
+      Math.floor(at.getMinutes() / 5),
+      effective.precipitation > 0,
+    ],
+  );
+  const route = useMemo(
+    () =>
+      computeRoute(from, to, profile, effective, at.getHours(), {
+        at,
+        edgeDelays: flow.edgeDelays,
+      }),
+    [from, to, profile, effective, at, flow],
+  );
+  const nextRoute = useMemo(
+    () =>
+      campus.nextEvent?.location?.locationId
+        ? computeRoute(
+            from,
+            campus.nextEvent.location.locationId,
+            profile,
+            effective,
+            at.getHours(),
+            { at, edgeDelays: flow.edgeDelays },
+          )
+        : null,
+    [from, campus.nextEvent?.id, effective, profile, at, flow],
+  );
+  const suggestions = useMemo(
+    () => gapRecommendations(campus, effective),
+    [campus, effective],
+  );
+  const next = campus.nextEvent;
+  const nextLeave =
+    next && nextRoute
+      ? new Date(Date.parse(next.start) - nextRoute.seconds * 1000 - 180000)
+      : undefined;
+  const leaveMinutes = nextLeave
+    ? Math.floor((nextLeave.getTime() - at.getTime()) / 60000)
+    : 0;
+  const happening = next && Date.parse(next.start) <= at.getTime();
+  const selectedBuilding = selected ? buildingById[selected] : null;
+  const selectedPOI = selectedPlace ? placeById[selectedPlace] : null;
+  const results = useCampusSearch(query);
+  const night = nightOverride ?? (at.getHours() < 7 || at.getHours() >= 19);
+  const WeatherIcon =
+    effective.code >= 71 && effective.code <= 77
+      ? CloudSnow
+      : effective.precipitation > 0
+        ? CloudRain
+        : effective.code === 45
+          ? CloudFog
+          : night
+            ? Moon
+            : Sun;
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    const network = () => setOffline(!navigator.onLine);
+    const resume = () => {
+      if (document.visibilityState === "visible") setNow(new Date());
+    };
+    const size = () => setMobile(window.innerWidth < 760);
+    window.addEventListener("online", network);
+    window.addEventListener("offline", network);
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("resize", size);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("online", network);
+      window.removeEventListener("offline", network);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("resize", size);
+    };
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("watway-classes", JSON.stringify(classes));
+      localStorage.setItem(
+        "watway-personal-events",
+        JSON.stringify(calendarEvents),
+      );
+      localStorage.setItem(
+        "watway-imported-events",
+        JSON.stringify(importedEvents),
+      );
+      localStorage.setItem("watway-origin", JSON.stringify(from));
+      localStorage.setItem("watway-profile", JSON.stringify(profile));
+      localStorage.setItem("watway-saved", JSON.stringify(saved));
+      localStorage.setItem("watway-quality", JSON.stringify(quality));
+    } catch {}
+  }, [classes, calendarEvents, importedEvents, from, profile, saved, quality]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  useEffect(() => {
+    body.current?.scrollTo({ top: 0 });
+  }, [tab, selected, routeVisible, searchOpen]);
+  useEffect(() => {
+    if (!playing || !route) return;
+    let last = performance.now(),
+      frame = 0;
+    const tick = (time: number) => {
+      const dt = Math.min((time - last) / 1000, 0.1);
+      last = time;
+      setProgress((p) =>
+        Math.min(1, p + (dt * speed * 10) / Math.max(route.seconds, 1)),
+      );
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, route, speed]);
+  useEffect(() => {
+    if (progress >= 1 && playing) {
+      setPlaying(false);
+      setToast("Arrived. Your route preview is complete.");
+    }
+    if (!playing || !route) return;
+    const pos = routePoint(route, progress),
+      e = route.edges[pos.edgeIndex],
+      n = route.nodes[pos.edgeIndex + 1];
+    if (n?.building && e?.kind !== "outdoor") {
+      setSelected(n.building);
+      setFloor(n.floor ?? 1);
+      setIndoor(true);
+    } else setIndoor(false);
+    const step = route.steps.findIndex(
+      (s) => pos.edgeIndex >= s.edgeStart && pos.edgeIndex <= s.edgeEnd,
+    );
+    if (
+      voice &&
+      step !== lastSpoken.current &&
+      step >= 0 &&
+      "speechSynthesis" in window
+    ) {
+      speechSynthesis.cancel();
+      speechSynthesis.speak(
+        new SpeechSynthesisUtterance(route.steps[step].title),
+      );
+      lastSpoken.current = step;
+    }
+  }, [progress, playing, route, voice]);
+  useEffect(() => {
+    setProgress(0);
+    setPlaying(false);
+  }, [from, to, profile]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAbout(false);
+        setLayersOpen(false);
+        setWeatherOpen(false);
+        setSearchOpen(false);
+        setTimelineOpen(false);
+        setPlaying(false);
+        if (mode === "first" || mode === "third") setMode("orbit");
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setSheet("full");
+        search.current?.focus();
+      }
+      if ((e.target as HTMLElement).matches("input,textarea,select")) return;
+      if (e.key === "1") setMode("map");
+      if (e.key === "2") setMode("third");
+      if (e.key === "3") setMode("first");
+      if (e.key.toLowerCase() === "m")
+        setMode((m) => (m === "map" ? "orbit" : "map"));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode]);
+  const switchTab = (v: typeof tab) => {
+    setTab(v);
+    setSelected(null);
+    setSelectedPlace(null);
+    setRouteVisible(false);
+    setPlaying(false);
+    setSearchOpen(false);
+    setSheet("half");
+    setDesktopHidden(false);
+  };
+  const selectBuilding = (id: string, poi?: string) => {
+    setSelected(id);
+    setSelectedPlace(poi || null);
+    setTab("explore");
+    setRouteVisible(false);
+    setSearchOpen(false);
+    setQuery("");
+    setSheet("half");
+    setIndoor(false);
+    setFloor(poi ? placeById[poi]?.floor || 1 : 1);
+    map.current?.focus(buildingById[id].center, 170);
+  };
+  const startRoute = (destination: string, origin = from) => {
+    const dest = resolveLocationId(destination);
+    if (!dest)
+      return setToast(
+        "This venue needs a building or room before it can be routed.",
+      );
+    setFrom(origin);
+    setTo(destination);
+    setRouteVisible(true);
+    setSearchOpen(false);
+    setQuery("");
+    setSelected(dest.building);
+    setIndoor(false);
+    setProgress(0);
+    setPlaying(false);
+    setMode("orbit");
+    setSheet("half");
+    setDesktopHidden(false);
+    const source = resolveLocation(origin);
+    map.current?.focus(
+      source
+        ? [
+            (source.point[0] + dest.point[0]) / 2,
+            0,
+            (source.point[2] + dest.point[2]) / 2,
+          ]
+        : dest.point,
+      Math.max(
+        230,
+        source
+          ? Math.hypot(
+              source.point[0] - dest.point[0],
+              source.point[2] - dest.point[2],
+            )
+          : 280,
+      ),
+    );
+  };
+  const walk = (preview = false, m: CameraMode = "first") => {
+    setMode(m);
+    if (mobile) setSheet("peek");
+    if (preview) {
+      setProgress(0);
+      setPlaying(true);
+    } else setPlaying(false);
+  };
+  const enterIndoor = () => {
+    const id = selected || "DC";
+    setSelected(id);
+    setIndoor(true);
+    setFloor(1);
+    map.current?.focus(buildingById[id].center, 125);
+    setSheet("peek");
+    setMode("orbit");
+  };
+  const locate = () => {
+    setToast("Finding your campus location…");
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => {
+        const p = project(pos.coords.latitude, pos.coords.longitude);
+        if (Math.hypot(p[0], p[2]) > 2200)
+          return setToast(
+            "You’re outside the mapped campus. Choose a starting building.",
+          );
+        addLocation("my-location", p);
+        setFrom("my-location");
+        map.current?.focus(p, 150);
+        setToast(`Location found · ±${Math.round(pos.coords.accuracy)} m`);
+      },
+      () =>
+        setToast(
+          "Location unavailable. Choose your starting building instead.",
+        ),
+      { timeout: 10000, enableHighAccuracy: true },
+    );
+  };
+  const addEventLink = async () => {
+    if (!eventLink.trim()) return;
+    setEventLoading(true);
+    try {
+      const r = await fetch(
+          `/api/campus/event?url=${encodeURIComponent(eventLink.trim())}`,
+          { signal: AbortSignal.timeout(18000) },
+        ),
+        data = await r.json();
+      if (!r.ok) throw Error(data.error);
+      const accepted = reconcileEvents(data.events, { now });
+      if (!accepted.events.length)
+        throw Error(
+          "This event is off campus, has no confirmed campus venue, or is outside the upcoming window.",
+        );
+      setImportedEvents(
+        (v) => reconcileEvents([...v, ...accepted.events], { now }).events,
+      );
+      setEventLink("");
+      setToast(`${accepted.events.length} campus event added`);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "Event could not be imported");
+    } finally {
+      setEventLoading(false);
+    }
+  };
+  const displayedEvents = publicEvents.events
+    .filter((e) => Date.parse(e.end) > at.getTime())
+    .slice(0, 10);
+  const filteredPlaces =
+    category === "all"
+      ? places.filter((p) => saved.includes(p.id))
+      : places.filter((p) => p.category === category);
+  const nav = [
+    ["home", Navigation, "For you"],
+    ["explore", Compass, "Explore"],
+    ["day", CalendarDays, "My day"],
+    ["campus", Activity, "Campus"],
+  ] as const;
+  return (
+    <div
+      className={`watway ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
+    >
+      <header className="app-header">
+        <a
+          className="brand"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            switchTab("home");
+            setIndoor(false);
+            setMode("orbit");
+            map.current?.reset();
+          }}
+        >
+          <span className="brand-mark">
+            W<i />
+          </span>
+          <span>
+            WAT<span>Way</span>
+            <small>YOUR CAMPUS, IN SYNC</small>
+          </span>
+        </a>
+        <div className="header-campus">
+          <span className="status-dot" />
+          University of Waterloo <ChevronDown size={13} />
+        </div>
+        <div className="header-actions">
+          {offline && (
+            <span className="offline-badge">
+              <WifiOff size={14} />
+              Offline
+            </span>
+          )}
+          <button
+            className="header-weather"
+            aria-label="Campus weather"
+            onClick={() => {
+              setWeatherOpen(!weatherOpen);
+              setLayersOpen(false);
+            }}
+          >
+            <WeatherIcon size={19} />
+            <b>{Math.round(effective.temperature)}°</b>
+            <span>
+              {weatherMode !== "live"
+                ? "Preview"
+                : weather.status === "live"
+                  ? "Feels like " + Math.round(weather.apparent) + "°"
+                  : "Weather cached"}
+            </span>
+          </button>
+          <button
+            className={`time-chip ${scrub !== null ? "previewing" : ""}`}
+            onClick={() => setTimelineOpen(!timelineOpen)}
+          >
+            <Clock size={14} />
+            {scrub === null ? "Live campus" : formatTime(at)}
+            <ChevronDown size={12} />
+          </button>
+          <button
+            className="header-info"
+            aria-label="Data sources and accuracy"
+            onClick={() => setAbout(true)}
+          >
+            <Info size={19} />
+          </button>
+        </div>
+      </header>
+      <main className="campus-map" aria-label="Interactive campus map">
+        <SceneBoundary>
+          <Suspense
+            fallback={
+              <div className="map-loading">
+                <span className="loading-mark">W</span>
+                <h2>Finding your campus.</h2>
+                <p>Buildings, pathways, and your day—coming together.</p>
+              </div>
+            }
+          >
+            <ThreeMap
+              ref={map}
+              selected={selected}
+              onSelect={selectBuilding}
+              mode={mode}
+              route={routeVisible ? route : null}
+              progress={progress}
+              playing={playing}
+              indoor={indoor}
+              floor={floor}
+              weather={effective}
+              night={night}
+              season={season}
+              showPaths={paths}
+              showLabels={labels}
+              showConnections={connections}
+              showCrowds={crowds}
+              onReady={() => setReady(true)}
+              onPosition={setPosition}
+              quality={quality}
+              timeOfDay={at.getHours() + at.getMinutes() / 60}
+              flowScale={campus.flowScale}
+              viewportInset={
+                mobile && mode !== "first" && mode !== "third"
+                  ? sheet === "peek"
+                    ? 0.05
+                    : sheet === "full"
+                      ? 0.05
+                      : 0.18
+                  : 0
+              }
+            />
+          </Suspense>
+        </SceneBoundary>
+        <div className="map-search">
+          <Search size={19} />
+          <input
+            ref={search}
+            aria-label="Search campus"
+            value={query}
+            onFocus={() => {
+              setSearchOpen(true);
+              setSheet("full");
+              setDesktopHidden(false);
+            }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSearchOpen(true);
+            }}
+            placeholder="Where on campus?"
+          />
+          {query ? (
+            <button aria-label="Clear search" onClick={() => setQuery("")}>
+              <X size={17} />
+            </button>
+          ) : (
+            <span className="search-shortcut">⌘ K</span>
+          )}
+        </div>
+        <div className="map-category-chips">
+          {[
+            ["study", BookOpen, "Study"],
+            ["food", Coffee, "Coffee"],
+            ["recreation", Activity, "Gyms"],
+            ["washroom", Accessibility, "Washrooms"],
+          ].map(([id, I, label]) => {
+            const Icon = I as any;
+            return (
+              <button
+                className={category === id && tab === "explore" ? "active" : ""}
+                key={id as string}
+                onClick={() => {
+                  switchTab("explore");
+                  setCategory(id as string);
+                }}
+              >
+                <Icon size={15} />
+                {label as string}
+              </button>
+            );
+          })}
+        </div>
+        <div className="map-status-pill">
+          <span className="status-dot" />
+          {indoor
+            ? `${selected} · ${floor === 0 ? "Basement" : `Floor ${floor}`}`
+            : scrub !== null
+              ? "TIME PREVIEW"
+              : "MAIN CAMPUS"}
+          <span>
+            {indoor
+              ? selected === "DC" && floor === 1
+                ? "Mapped interior"
+                : "Partial interior"
+              : campus.congestionLevel}
+          </span>
+        </div>
+        <div className="map-tools">
+          <button
+            className="compass-control"
+            aria-label="Rotate map"
+            onClick={() => map.current?.rotate()}
+          >
+            <b>N</b>
+            <Navigation size={21} fill="currentColor" />
+          </button>
+          <div className="zoom-stack">
+            <IconButton
+              icon={Plus}
+              label="Zoom in"
+              onClick={() => map.current?.zoom(0.8)}
+            />
+            <IconButton
+              icon={Minus}
+              label="Zoom out"
+              onClick={() => map.current?.zoom(1.25)}
+            />
+          </div>
+          <IconButton icon={LocateFixed} label="My location" onClick={locate} />
+          <IconButton
+            icon={Layers}
+            label="Map layers"
+            active={layersOpen}
+            onClick={() => {
+              setLayersOpen(!layersOpen);
+              setWeatherOpen(false);
+            }}
+          />
+          <IconButton
+            icon={RotateCcw}
+            label="Reset map"
+            onClick={() => {
+              setMode("orbit");
+              setIndoor(false);
+              map.current?.reset();
+            }}
+          />
+        </div>
+        {indoor && (
+          <div className="floor-picker">
+            <span>FLOOR</span>
+            {Array.from(
+              { length: Math.min(selectedBuilding?.floors || 3, 10) + 1 },
+              (_, i) => i,
+            )
+              .reverse()
+              .map((f) => (
+                <button
+                  className={floor === f ? "active" : ""}
+                  key={f}
+                  onClick={() => {
+                    setFloor(f);
+                    map.current?.focus(
+                      [
+                        selectedBuilding?.center[0] || 0,
+                        (f - 1) * 3.8,
+                        selectedBuilding?.center[2] || 0,
+                      ],
+                      125,
+                    );
+                  }}
+                >
+                  {f === 0 ? "B" : f}
+                </button>
+              ))}
+          </div>
+        )}
+        <div className="map-view-actions">
+          <button
+            className={`indoor-toggle ${indoor ? "active" : ""}`}
+            onClick={() => {
+              if (indoor) {
+                setIndoor(false);
+                setMode("orbit");
+                map.current?.reset();
+              } else enterIndoor();
+            }}
+          >
+            <Layers size={17} />
+            <span>{indoor ? "Outside" : "Go inside"}</span>
+          </button>
+          <div className="camera-switch" aria-label="Camera modes">
+            {[
+              ["map", Map, "Map"],
+              ["orbit", Box, "3D"],
+              ["third", Footprints, "Follow"],
+              ["first", PersonStanding, "Walk"],
+            ].map(([id, I, label]) => {
+              const Icon = I as any;
+              return (
+                <button
+                  aria-label={label as string}
+                  className={mode === id ? "active" : ""}
+                  key={id as string}
+                  onClick={() => {
+                    if (id === "first" || id === "third")
+                      walk(false, id as CameraMode);
+                    else setMode(id as CameraMode);
+                  }}
+                >
+                  <Icon size={17} />
+                  <span>{label as string}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="map-credit">
+          <a href={sources.map} target="_blank" rel="noreferrer">
+            © OpenStreetMap
+          </a>
+          <span>·</span>
+          <button onClick={() => setAbout(true)}>Data & accuracy</button>
+        </div>
+        {timelineOpen && (
+          <div className="time-scrubber">
+            <div>
+              <span>
+                <Clock size={16} />
+                {scrub === null ? "Right now" : formatTime(at)}
+              </span>
+              <button
+                onClick={() => {
+                  setScrub(null);
+                  setTimelineOpen(false);
+                }}
+              >
+                Back to live
+                <X size={14} />
+              </button>
+            </div>
+            <input
+              aria-label="Campus time preview"
+              type="range"
+              min={360}
+              max={1380}
+              step={5}
+              value={scrub ?? now.getHours() * 60 + now.getMinutes()}
+              onChange={(e) => setScrub(Number(e.target.value))}
+            />
+            <div className="time-marks">
+              <span>6 AM</span>
+              <span>Noon</span>
+              <span>6 PM</span>
+              <span>11 PM</span>
+            </div>
+            <p>
+              {campus.congestionLevel} · routes, predicted activity, and
+              lighting follow this time.
+            </p>
+          </div>
+        )}
+        {layersOpen && (
+          <div className="map-popover">
+            <div className="popover-title">
+              <h3>Your map</h3>
+              <button
+                aria-label="Close layers"
+                onClick={() => setLayersOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {[
+              ["Building labels", labels, setLabels],
+              ["Walking paths", paths, setPaths],
+              ["Bridges & tunnels", connections, setConnections],
+              ["Predicted campus activity", crowds, setCrowds],
+            ].map(([label, value, fn]) => (
+              <label className="toggle-row" key={label as string}>
+                <span>{label as string}</span>
+                <input
+                  type="checkbox"
+                  checked={value as boolean}
+                  onChange={(e) => (fn as any)(e.target.checked)}
+                />
+                <i />
+              </label>
+            ))}
+            <label className="toggle-row">
+              <span>Night view</span>
+              <input
+                type="checkbox"
+                checked={night}
+                onChange={(e) => setNightOverride(e.target.checked)}
+              />
+              <i />
+            </label>
+            <label className="setting-row">
+              Season
+              <select
+                value={season}
+                onChange={(e) => setSeason(e.target.value)}
+              >
+                <option value="spring">Spring</option>
+                <option value="summer">Summer</option>
+                <option value="autumn">Autumn</option>
+                <option value="winter">Winter</option>
+              </select>
+            </label>
+            <label className="setting-row">
+              Quality
+              <select
+                value={quality}
+                onChange={(e) => setQuality(e.target.value as any)}
+              >
+                <option value="auto">Adaptive</option>
+                <option value="high">High detail</option>
+                <option value="battery">Battery saver</option>
+              </select>
+            </label>
+            <p className="micro-copy">
+              Activity is simulated from campus movement patterns. Gyms show
+              published occupancy in Campus.
+            </p>
+          </div>
+        )}
+        {weatherOpen && (
+          <div className="map-popover weather-popover">
+            <div className="popover-title">
+              <h3>Campus weather</h3>
+              <button
+                aria-label="Close weather"
+                onClick={() => setWeatherOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="weather-display">
+              <WeatherIcon size={40} />
+              <strong>{Math.round(effective.temperature)}°</strong>
+              <span>
+                {weatherDescription(effective.code)}
+                <small>Feels like {Math.round(effective.apparent)}°</small>
+              </span>
+            </div>
+            <div className="weather-numbers">
+              <span>
+                <Wind size={15} />
+                {Math.round(effective.wind)} km/h
+              </span>
+              <span>
+                <Droplets size={15} />
+                {effective.precipitation} mm
+              </span>
+            </div>
+            <div className="hourly-weather">
+              {weather.hourly.slice(0, 5).map((h) => (
+                <div key={h.time}>
+                  <small>{h.time.slice(11, 16)}</small>
+                  <b>{Math.round(h.temperature)}°</b>
+                  <span>{h.rain}%</span>
+                </div>
+              ))}
+            </div>
+            <p className="section-eyebrow">PREVIEW CONDITIONS</p>
+            <div className="weather-presets">
+              {[
+                ["live", "Live", LocateFixed],
+                ["sun", "Sun", Sun],
+                ["rain", "Rain", CloudRain],
+                ["snow", "Snow", CloudSnow],
+                ["fog", "Fog", CloudFog],
+              ].map(([id, label, I]) => {
+                const Icon = I as any;
+                return (
+                  <button
+                    className={weatherMode === id ? "active" : ""}
+                    key={id as string}
+                    onClick={() => setWeatherMode(id as WeatherMode)}
+                  >
+                    <Icon size={18} />
+                    {label as string}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="micro-copy">
+              {weatherMode === "live"
+                ? weather.status === "live"
+                  ? `Open-Meteo · updated ${formatTime(weather.fetchedAt)}`
+                  : "Cached or sample conditions; live weather unavailable."
+                : "Simulated conditions change weather-aware route choices."}
+            </p>
+          </div>
+        )}
+        {(mode === "first" || mode === "third") && (
+          <>
+            <div className="walking-hud">
+              <span>
+                <PersonStanding size={17} />
+                {mode === "first" ? "First person" : "Follow camera"}
+              </span>
+              <button
+                onClick={() => {
+                  setMode("orbit");
+                  setPlaying(false);
+                  setSheet("half");
+                }}
+              >
+                Exit
+                <X size={15} />
+              </button>
+            </div>
+            {mode === "first" && <div className="crosshair" />}
+            {!playing && progress === 0 && (
+              <GameMinimap
+                position={position}
+                indoor={indoor && selected === "DC" && floor === 1}
+                route={routeVisible ? route : null}
+              />
+            )}
+            <div className="walk-help">
+              <kbd>WASD</kbd> move <span>·</span> drag to look <span>·</span>{" "}
+              <kbd>Shift</kbd> run
+            </div>
+            <div className="touch-move">
+              {[
+                ["w", ArrowUp],
+                ["a", ArrowLeft],
+                ["s", ArrowDown],
+                ["d", ArrowRight],
+              ].map(([k, I]) => {
+                const Icon = I as any;
+                return (
+                  <button
+                    aria-label={`Move ${k}`}
+                    key={k as string}
+                    onPointerDown={(e) => {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      map.current?.move(k as string, true);
+                    }}
+                    onPointerUp={() => map.current?.move(k as string, false)}
+                    onPointerCancel={() =>
+                      map.current?.move(k as string, false)
+                    }
+                  >
+                    <Icon size={20} />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {(playing || progress > 0) && route && (
+          <div className="playback">
+            <div>
+              <span className="status-dot" />
+              <strong>{progress >= 1 ? "Arrived" : "Route preview"}</strong>
+              <small>{Math.round(progress * 100)}%</small>
+              <button
+                aria-label="Close preview"
+                onClick={() => {
+                  setPlaying(false);
+                  setProgress(0);
+                  setMode("orbit");
+                  setSheet("half");
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div>
+              <button
+                className="play-button"
+                aria-label={playing ? "Pause preview" : "Play preview"}
+                onClick={() => {
+                  if (progress >= 1) setProgress(0);
+                  setPlaying(!playing);
+                }}
+              >
+                {playing ? <Pause size={17} /> : <Play size={17} />}
+              </button>
+              <input
+                type="range"
+                aria-label="Walkthrough progress"
+                min="0"
+                max="1"
+                step="0.001"
+                value={progress}
+                onChange={(e) => setProgress(Number(e.target.value))}
+              />
+              <button
+                onClick={() => setSpeed((s) => (s === 1 ? 2 : s === 2 ? 4 : 1))}
+              >
+                {speed}×
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+      <aside className="bottom-sheet" aria-label="Campus navigation panel">
+        <button
+          className="sheet-handle"
+          aria-label={sheet === "full" ? "Collapse panel" : "Expand panel"}
+          onClick={() =>
+            setSheet((s) =>
+              s === "half" ? "full" : s === "full" ? "peek" : "half",
+            )
+          }
+          onPointerDown={(e) => {
+            drag.current = e.clientY;
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerUp={(e) => {
+            const dy = e.clientY - drag.current;
+            if (dy > 50) setSheet(sheet === "full" ? "half" : "peek");
+            if (dy < -50) setSheet(sheet === "peek" ? "half" : "full");
+          }}
+        >
+          <i />
+          <span>
+            {routeVisible && route
+              ? `${minutes(route)} min to ${resolveLocation(to)?.name}`
+              : next?.location?.label
+                ? `Next: ${next.location.label}`
+                : "Your campus, at a glance"}
+          </span>
+          <ChevronDown size={16} />
+        </button>
+        <nav className="desktop-nav">
+          {nav.map(([id, Icon, label]) => (
+            <button
+              className={tab === id && !routeVisible ? "active" : ""}
+              key={id}
+              onClick={() => switchTab(id)}
+            >
+              <Icon size={17} />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="sheet-content" ref={body}>
+          {searchOpen ? (
+            <>
+              <div className="panel-heading">
+                <div>
+                  <span className="eyebrow">CAMPUS SEARCH</span>
+                  <h1>{query ? "Here’s what we found" : "Find your place"}</h1>
+                </div>
+                <button
+                  className="round-action"
+                  aria-label="Close search"
+                  onClick={() => {
+                    setSearchOpen(false);
+                    setSheet("half");
+                  }}
+                >
+                  <X size={19} />
+                </button>
+              </div>
+              {results.map((r) => (
+                <button
+                  className="search-result"
+                  key={r.id}
+                  onClick={() => {
+                    if (originEdit) {
+                      setFrom(r.id);
+                      setOriginEdit(false);
+                      setSearchOpen(false);
+                      setToast("Starting point updated");
+                    } else selectBuilding(r.building, r.place?.id);
+                  }}
+                >
+                  <span className={`place-icon ${r.category}`}>
+                    {(() => {
+                      const I = iconFor(r.category);
+                      return <I size={21} />;
+                    })()}
+                  </span>
+                  <span>
+                    <strong>{r.name}</strong>
+                    <small>{r.subtitle}</small>
+                  </span>
+                  <ChevronRight size={16} />
+                </button>
+              ))}
+              {!results.length && (
+                <div className="empty-state">
+                  <Search size={30} />
+                  <h3>No campus match yet.</h3>
+                  <p>Try a building code, “DC 1350”, or “quiet study”.</p>
+                </div>
+              )}
+            </>
+          ) : routeVisible ? (
+            <>
+              <div className="panel-heading">
+                <button
+                  className="back-link"
+                  onClick={() => {
+                    setRouteVisible(false);
+                    setPlaying(false);
+                    setSelected(null);
+                  }}
+                >
+                  <ArrowLeft size={17} />
+                  Your route
+                </button>
+                <button
+                  className="round-action"
+                  aria-label="Close directions"
+                  onClick={() => {
+                    setRouteVisible(false);
+                    setPlaying(false);
+                  }}
+                >
+                  <X size={19} />
+                </button>
+              </div>
+              <div className="route-locations">
+                <div className="route-stops">
+                  <i />
+                  <span />
+                  <MapPin size={17} />
+                </div>
+                <div>
+                  <LocationInput label="From" value={from} onChange={setFrom} />
+                  <LocationInput label="To" value={to} onChange={setTo} />
+                </div>
+                <button
+                  aria-label="Swap route endpoints"
+                  onClick={() => {
+                    setFrom(to);
+                    setTo(from);
+                  }}
+                >
+                  <ArrowUpDown size={19} />
+                </button>
+              </div>
+              <div className="preference-chips">
+                {Object.entries(profileLabels).map(([id, label]) => (
+                  <button
+                    className={profile === id ? "active" : ""}
+                    key={id}
+                    onClick={() => setProfile(id as RouteProfile)}
+                  >
+                    {id === "accessible" && <Accessibility size={14} />} {label}
+                  </button>
+                ))}
+              </div>
+              {route ? (
+                <>
+                  <div className="route-hero">
+                    <strong>
+                      {minutes(route)}
+                      <small>min</small>
+                    </strong>
+                    <div>
+                      <b>{Math.round(route.distance)} m walk</b>
+                      <span>
+                        Arrive{" "}
+                        {formatTime(
+                          new Date(at.getTime() + route.seconds * 1000),
+                        )}
+                      </span>
+                    </div>
+                    <span className="route-quality">
+                      <ShieldCheck size={13} />
+                      {profileLabels[profile]}
+                    </span>
+                  </div>
+                  <div className="route-facts">
+                    <span>
+                      <Building2 size={16} />
+                      {route.indoorPercent}% indoors
+                    </span>
+                    <span>
+                      <Footprints size={16} />
+                      {route.stairs} stair segments
+                    </span>
+                    <span>
+                      <Wind size={16} />
+                      {Math.ceil(route.outdoorDistance / 80)} min outside
+                    </span>
+                  </div>
+                  {route.elevatorWait > 0 && (
+                    <div className="route-context">
+                      <Clock size={16} />
+                      {route.elevatorWait}s estimated elevator wait
+                    </div>
+                  )}
+                  <div className="route-context">
+                    <Activity size={16} />
+                    {campus.congestionLevel} campus movement ·{" "}
+                    {scrub === null ? "current" : "preview"} ETA
+                  </div>
+                  <button
+                    className="primary start-walk"
+                    onClick={() => walk(true, "third")}
+                  >
+                    <Navigation size={18} fill="currentColor" />
+                    Start route preview<span>{minutes(route)} min</span>
+                  </button>
+                  <div className="section-head">
+                    <h2>Along the way</h2>
+                    <button
+                      aria-label={
+                        voice ? "Mute directions" : "Read directions aloud"
+                      }
+                      onClick={() => setVoice(!voice)}
+                    >
+                      {voice ? <Volume2 size={17} /> : <VolumeX size={17} />}
+                    </button>
+                  </div>
+                  <ol className="directions-list">
+                    {route.steps.map((s, i) => (
+                      <li key={i}>
+                        <button
+                          onClick={() => {
+                            setProgress(
+                              route.edges
+                                .slice(0, s.edgeStart)
+                                .reduce((n, e) => n + e.distance, 0) /
+                                route.distance,
+                            );
+                            map.current?.focus(s.point, 100);
+                          }}
+                        >
+                          <span className={`step-icon ${s.kind}`}>
+                            {s.kind === "elevator" ? (
+                              <ArrowUpDown size={18} />
+                            ) : s.kind === "stairs" ? (
+                              <Footprints size={18} />
+                            ) : s.kind === "bridge" || s.kind === "tunnel" ? (
+                              <Building2 size={18} />
+                            ) : s.kind === "entrance" ? (
+                              <LogIn size={18} />
+                            ) : (
+                              <ArrowUp size={18} />
+                            )}
+                          </span>
+                          <span>
+                            <strong>{s.title}</strong>
+                            <small>{s.detail}</small>
+                          </span>
+                          <em>{Math.round(s.distance)}m</em>
+                        </button>
+                      </li>
+                    ))}
+                    <li className="arrival">
+                      <Flag size={18} />
+                      <b>{resolveLocation(to)?.name}</b>
+                    </li>
+                  </ol>
+                  <div className="accuracy-note">
+                    <Info size={15} />
+                    {profile === "accessible"
+                      ? "Step-free avoids mapped stairs and known steep links. Door access and elevator operation still require local confirmation."
+                      : "Mapped paths are combined with approximate interior approaches. Follow posted signs and construction detours."}
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <RouteIcon size={30} />
+                  <h3>No connected route.</h3>
+                  <p>Try a nearby entrance or another route preference.</p>
+                </div>
+              )}
+            </>
+          ) : tab === "home" ? (
+            <>
+              <div className="home-greeting">
+                <div>
+                  <span className="eyebrow">
+                    {at.getHours() < 12
+                      ? "GOOD MORNING"
+                      : at.getHours() < 17
+                        ? "GOOD AFTERNOON"
+                        : "GOOD EVENING"}
+                  </span>
+                  <h1>Your day, in sync.</h1>
+                </div>
+                <span className="greeting-symbol">
+                  <Navigation size={28} />
+                </span>
+              </div>
+              <button
+                className="current-origin"
+                onClick={() => {
+                  setOriginEdit(true);
+                  setSearchOpen(true);
+                  setSheet("full");
+                  search.current?.focus();
+                }}
+              >
+                <MapPin size={14} />
+                <span>
+                  From <b>{resolveLocation(from)?.name || "your location"}</b>
+                </span>
+                <ChevronDown size={13} />
+              </button>
+              {next ? (
+                <article className="destination-card">
+                  <div className="destination-eyebrow">
+                    <span>
+                      {happening
+                        ? "HAPPENING NOW"
+                        : leaveMinutes <= 0
+                          ? "TIME TO HEAD OUT"
+                          : `LEAVE IN ${leaveMinutes} MIN`}
+                    </span>
+                    <small>
+                      {next.source === "Sample" ? "SAMPLE DAY" : next.source}
+                    </small>
+                  </div>
+                  <div className="destination-main">
+                    <div className="destination-code">
+                      {next.location?.building || "UW"}
+                    </div>
+                    <div>
+                      <h2>{next.title}</h2>
+                      <p>
+                        {next.location?.label}{" "}
+                        <span>· {formatTime(next.start)}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="destination-route">
+                    <span>
+                      <Clock size={15} />
+                      {nextLeave
+                        ? `Leave ${formatTime(nextLeave)}`
+                        : "Choose a location"}
+                    </span>
+                    <span>
+                      <Building2 size={15} />
+                      {nextRoute?.indoorPercent || 0}% indoors
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      next.location?.locationId &&
+                      startRoute(next.location.locationId)
+                    }
+                  >
+                    <Navigation size={17} />
+                    Your best route
+                    <strong>
+                      {minutes(nextRoute)} min
+                      <ArrowRight size={17} />
+                    </strong>
+                  </button>
+                </article>
+              ) : (
+                <article className="connect-prompt">
+                  <CalendarDays size={27} />
+                  <div>
+                    <h2>Let the map know your day.</h2>
+                    <p>
+                      Connect your calendar for upcoming rooms, leave-by times,
+                      and timely suggestions.
+                    </p>
+                  </div>
+                  <button onClick={() => switchTab("day")}>
+                    <ArrowRight size={19} />
+                  </button>
+                </article>
+              )}
+              <div className="context-grid">
+                <button onClick={() => setWeatherOpen(true)}>
+                  <WeatherIcon size={20} />
+                  <span>
+                    <strong>
+                      {effective.precipitation > 0
+                        ? "Stay a little drier"
+                        : weatherDescription(effective.code)}
+                    </strong>
+                    <small>
+                      {effective.precipitation > 0
+                        ? "Try Weather-smart routing"
+                        : `${Math.round(effective.temperature)}° · a good day to walk`}
+                    </small>
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    switchTab("campus");
+                    setTimelineOpen(true);
+                  }}
+                >
+                  <Activity size={20} />
+                  <span>
+                    <strong>{campus.congestionLevel}</strong>
+                    <small>Predicted campus movement</small>
+                  </span>
+                </button>
+              </div>
+              <div className="section-head">
+                <h2>
+                  {campus.gapMinutes >= 15
+                    ? `${campus.gapMinutes} minutes to make yours`
+                    : "A good next stop"}
+                </h2>
+                <span>FOR YOU</span>
+              </div>
+              {suggestions.length ? (
+                suggestions.map((r) => (
+                  <Opportunity
+                    key={r.place.id}
+                    name={r.place.name}
+                    category={r.place.category}
+                    minutes={r.walk}
+                    description={`${r.spare >= 60 ? "60+" : r.spare} min after walking · ${r.occupancy < 45 ? "usually quieter" : "activity estimated"}`}
+                    onClick={() => startRoute(r.place.id)}
+                  />
+                ))
+              ) : (
+                <div className="quiet-note">
+                  <Clock size={17} />A tight gap. Your next destination comes
+                  first.
+                </div>
+              )}
+              <div className="section-head">
+                <h2>On campus today</h2>
+                <button onClick={() => switchTab("campus")}>
+                  See all
+                  <ArrowRight size={13} />
+                </button>
+              </div>
+              {displayedEvents.slice(0, 2).map((e) => (
+                <EventCard key={e.id} event={e} onRoute={startRoute} />
+              ))}
+              {!displayedEvents.length && (
+                <div className="quiet-note">
+                  <CalendarDays size={17} />
+                  {feedLoading
+                    ? "Checking public campus listings…"
+                    : "No confirmed upcoming campus events in this update."}
+                </div>
+              )}
+              <button
+                className="construction-note"
+                onClick={() => {
+                  map.current?.focus(closure.point, 160);
+                  setToast(closure.detail);
+                }}
+              >
+                <Construction size={19} />
+                <span>
+                  <strong>Math quad detour</strong>
+                  <small>MC–DC and MC–M3 bridges removed</small>
+                </span>
+                <ChevronRight size={17} />
+              </button>
+            </>
+          ) : tab === "day" ? (
+            <CalendarPanel
+              events={calendarEvents}
+              classes={classes}
+              onEvents={setCalendarEvents}
+              onClasses={setClasses}
+              onRoute={startRoute}
+              notify={setToast}
+              at={at}
+            />
+          ) : tab === "campus" ? (
+            <>
+              <div className="panel-heading">
+                <div>
+                  <span className="eyebrow">WHAT’S HAPPENING AROUND YOU</span>
+                  <h1>Campus pulse</h1>
+                </div>
+                <button
+                  className="round-action"
+                  aria-label="Refresh campus data"
+                  onClick={refresh}
+                >
+                  <RefreshCw size={19} className={feedLoading ? "spin" : ""} />
+                </button>
+              </div>
+              <div className="feed-freshness">
+                <span className="status-dot" />
+                {feedLoading
+                  ? "Updating campus sources…"
+                  : feed?.fetchedAt
+                    ? `Updated ${formatTime(feed.fetchedAt)}`
+                    : "Connecting public sources"}
+                {scrub !== null && <b>Time preview</b>}
+              </div>
+              <div className="section-head">
+                <h2>Room for a workout?</h2>
+                <a
+                  href="https://warrior.uwaterloo.ca/FacilityOccupancy"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Warrior Rec
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+              {feed?.facilities.length ? (
+                feed.facilities
+                  .filter((f) =>
+                    /Fitness Centre|Free Weights|Cardio|Weight Machines/.test(
+                      f.name,
+                    ),
+                  )
+                  .map((f) => (
+                    <FacilityCard
+                      key={f.id}
+                      facility={f}
+                      onRoute={() => startRoute(f.building)}
+                      preview={scrub !== null}
+                      predicted={campus.states[f.building]?.occupancy}
+                    />
+                  ))
+              ) : (
+                <div className="quiet-note">
+                  <Activity size={18} />
+                  {feedLoading
+                    ? "Checking published occupancy…"
+                    : "Occupancy unavailable. Check Warrior Rec for current availability."}
+                </div>
+              )}
+              <div className="section-head">
+                <h2>Happening on campus</h2>
+                <span>{displayedEvents.length} MATCHES</span>
+              </div>
+              {displayedEvents.map((e) => (
+                <EventCard key={e.id} event={e} onRoute={startRoute} />
+              ))}
+              <p className="micro-copy">
+                Only confirmed UW venues or explicitly announced UW campus
+                events.{" "}
+                {publicEvents.excluded > 0
+                  ? `${publicEvents.excluded} off-campus, past, or unresolved listings filtered.`
+                  : ""}{" "}
+                Duplicates are reconciled across sources.
+              </p>
+              <details className="event-import">
+                <summary>
+                  <Link2 size={16} />
+                  Add a Luma, Partiful, or WYGO event
+                </summary>
+                <p>
+                  Public event details are checked against Waterloo’s campus.
+                  Private or hidden venues need a calendar file.
+                </p>
+                <label>
+                  Public event link
+                  <input
+                    type="url"
+                    value={eventLink}
+                    onChange={(e) => setEventLink(e.target.value)}
+                    placeholder="https://luma.com/…"
+                  />
+                </label>
+                <button
+                  className="secondary"
+                  disabled={eventLoading || !eventLink.trim()}
+                  onClick={addEventLink}
+                >
+                  {eventLoading ? "Checking venue…" : "Check & add event"}
+                </button>
+              </details>
+              <div className="section-head">
+                <h2>The campus, over time</h2>
+                <button onClick={() => setTimelineOpen(true)}>
+                  Explore
+                  <Clock size={13} />
+                </button>
+              </div>
+              <div className="flow-card">
+                <div>
+                  <Activity size={19} />
+                  <strong>{campus.congestionLevel}</strong>
+                  <span>MODEL</span>
+                </div>
+                <p>
+                  ~{flow.totalDemand} trips/min across modelled class-change
+                  routes. Estimates change with time and weather.
+                </p>
+                <div className="flow-sparkline">
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <i
+                      key={i}
+                      style={{
+                        height: `${12 + Math.sin(i * 0.8) ** 2 * 26 + (i > 8 && i < 18 ? 22 : 0)}px`,
+                        opacity: i === at.getHours() ? 1 : 0.35,
+                      }}
+                    />
+                  ))}
+                </div>
+                {flow.bottlenecks.slice(0, 3).map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => map.current?.focus(b.point, 130)}
+                  >
+                    <span>
+                      <strong>{b.name}</strong>
+                      <small>
+                        Estimated {b.peoplePerMinute} people/min · model
+                        capacity {b.capacity}/min
+                      </small>
+                    </span>
+                    <ChevronRight size={16} />
+                  </button>
+                ))}
+                <small>
+                  Class patterns and link capacities are curated assumptions,
+                  not measured timetables or safety capacities.
+                </small>
+              </div>
+              <details className="source-status">
+                <summary>
+                  <ShieldCheck size={15} />
+                  Sources & freshness
+                </summary>
+                {feed?.sources.map((s) => (
+                  <a key={s.id} href={s.url} target="_blank" rel="noreferrer">
+                    <span>
+                      <strong>{s.name}</strong>
+                      <small>{s.detail}</small>
+                    </span>
+                    <b className={s.status}>{s.status}</b>
+                  </a>
+                ))}
+                <a
+                  href="https://github.com/rickyqin005/WATIsGrass"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>
+                    <strong>WATIsGrass</strong>
+                    <small>
+                      Community indoor paths · closure filters applied
+                    </small>
+                  </span>
+                  <b>mapped</b>
+                </a>
+              </details>
+              {feedError && <p className="micro-copy">{feedError}</p>}
+            </>
+          ) : selectedBuilding ? (
+            <>
+              <button
+                className="back-link"
+                onClick={() => {
+                  setSelected(null);
+                  setSelectedPlace(null);
+                  setIndoor(false);
+                  map.current?.reset();
+                }}
+              >
+                <ArrowLeft size={16} />
+                Explore campus
+              </button>
+              <div className="building-detail-head">
+                <span className="building-code">
+                  {selectedBuilding.id === "LIB" ? "DP" : selectedBuilding.id}
+                </span>
+                <button
+                  className={
+                    saved.includes(selectedPlace || selected!) ? "saved" : ""
+                  }
+                  aria-label="Save this place"
+                  onClick={() =>
+                    setSaved((v) =>
+                      v.includes(selectedPlace || selected!)
+                        ? v.filter((x) => x !== (selectedPlace || selected!))
+                        : [...v, selectedPlace || selected!],
+                    )
+                  }
+                >
+                  <Bookmark size={21} />
+                </button>
+              </div>
+              <span className="eyebrow">
+                {
+                  categoryNames[
+                    selectedPOI?.category || selectedBuilding.category
+                  ]
+                }
+              </span>
+              <h1 className="building-title">
+                {selectedPOI?.name || selectedBuilding.shortName}
+              </h1>
+              <div className="building-meta">
+                <span>
+                  <Layers size={15} />
+                  {selectedPOI
+                    ? `Floor ${selectedPOI.floor}`
+                    : `${selectedBuilding.floors} floors`}
+                </span>
+                <span>
+                  <MapPin size={15} />
+                  Main campus
+                </span>
+              </div>
+              <p className="building-description">
+                {selectedPOI?.description || selectedBuilding.description}
+              </p>
+              <div className="button-pair">
+                <button
+                  className="primary"
+                  onClick={() => startRoute(selectedPlace || selected!)}
+                >
+                  <Navigation size={18} />
+                  Directions
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    setFrom(selectedPlace || selected!);
+                    setToast("Starting point updated");
+                  }}
+                >
+                  Start here
+                </button>
+              </div>
+              <button className="indoor-card" onClick={enterIndoor}>
+                <Box size={27} />
+                <span>
+                  <strong>Step inside</strong>
+                  <small>
+                    {selected === "DC"
+                      ? "128 mapped spaces · doors & corridors"
+                      : "Floor overview · community paths where available"}
+                  </small>
+                </span>
+                <ArrowRight size={18} />
+              </button>
+              {selected === "MC" && (
+                <div className="reference-links">
+                  {[2, 3, 6].map((f) => (
+                    <a
+                      key={f}
+                      href={`/floorplans/MC-${f}.${f === 6 ? "pdf" : "png"}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Floor {f} plan
+                      <ExternalLink size={12} />
+                    </a>
+                  ))}
+                </div>
+              )}
+              <div className="section-head">
+                <h2>Inside {selectedBuilding.id}</h2>
+                <span>PLACES</span>
+              </div>
+              {places
+                .filter((p) => p.building === selected && p.category !== "room")
+                .slice(0, 15)
+                .map((p) => (
+                  <PlaceRow
+                    key={p.id}
+                    place={p}
+                    onClick={() => {
+                      setSelectedPlace(p.id);
+                      setFloor(p.floor || 1);
+                      map.current?.focus(p.point, 100);
+                    }}
+                    onRoute={() => startRoute(p.id)}
+                  />
+                ))}
+              <div className="accuracy-note">
+                <Info size={15} />
+                {selected === "DC"
+                  ? "Ground-floor room outlines and doors are mapped. Other floors and some connecting approaches remain schematic."
+                  : "Interior coverage is partial. Consult the source floor plan and posted signs for the final approach."}
+              </div>
+              <a
+                className="source-link"
+                href={sources.accessibility}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Official accessibility details
+                <ExternalLink size={14} />
+              </a>
+            </>
+          ) : (
+            <>
+              <div className="panel-heading">
+                <div>
+                  <span className="eyebrow">
+                    YOUR FAVOURITE CORNERS, CLOSER
+                  </span>
+                  <h1>Explore Waterloo</h1>
+                </div>
+                <Compass size={28} className="muted-icon" />
+              </div>
+              <div className="explore-categories">
+                {[
+                  ["all", Building2, "Buildings"],
+                  ["study", BookOpen, "Study"],
+                  ["food", Coffee, "Food"],
+                  ["washroom", Accessibility, "Washrooms"],
+                  ["water", GlassWater, "Water"],
+                  ["printer", Printer, "Print"],
+                  ["recreation", Activity, "Active"],
+                  ["transit", TrainFront, "Transit"],
+                ].map(([id, I, label]) => {
+                  const Icon = I as any;
+                  return (
+                    <button
+                      className={category === id ? "active" : ""}
+                      key={id as string}
+                      onClick={() => setCategory(id as string)}
+                    >
+                      <Icon size={19} />
+                      {label as string}
+                    </button>
+                  );
+                })}
+              </div>
+              {category === "all" ? (
+                <>
+                  {saved.length > 0 && (
+                    <>
+                      <div className="section-head">
+                        <h2>Your saved places</h2>
+                      </div>
+                      {saved.map((id) => {
+                        const p = resolveLocationId(id);
+                        return p ? (
+                          <button
+                            className="saved-place"
+                            key={id}
+                            onClick={() =>
+                              selectBuilding(
+                                p.building,
+                                placeById[id] ? id : undefined,
+                              )
+                            }
+                          >
+                            <Bookmark size={16} />
+                            {p.name}
+                            <ChevronRight size={16} />
+                          </button>
+                        ) : null;
+                      })}
+                    </>
+                  )}
+                  <div className="section-head">
+                    <h2>Campus essentials</h2>
+                    <span>{buildings.length} BUILDINGS</span>
+                  </div>
+                  {buildings.map((b) => (
+                    <button
+                      className="building-list-row"
+                      key={b.id}
+                      onClick={() => selectBuilding(b.id)}
+                    >
+                      <span>{b.id === "LIB" ? "DP" : b.id}</span>
+                      <div>
+                        <strong>{b.shortName}</strong>
+                        <small>
+                          {b.floors} floors ·{" "}
+                          {campus.states[b.id]?.occupancy < 45
+                            ? "usually quieter"
+                            : "activity estimated"}
+                        </small>
+                      </div>
+                      <ChevronRight size={16} />
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <div className="section-head">
+                    <h2>{categoryNames[category]}</h2>
+                    <span>{filteredPlaces.length} PLACES</span>
+                  </div>
+                  {filteredPlaces.map((p) => (
+                    <PlaceRow
+                      key={p.id}
+                      place={p}
+                      onClick={() => selectBuilding(p.building, p.id)}
+                      onRoute={() => startRoute(p.id)}
+                    />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </div>
+        <div className="desktop-panel-footer">
+          <span>
+            <ShieldCheck size={13} />
+            Made for Waterloo. Grounded in sources.
+          </span>
+          <button onClick={() => setAbout(true)}>About</button>
+        </div>
+      </aside>
+      <nav className="mobile-nav" aria-label="Main navigation">
+        {nav.map(([id, Icon, label]) => (
+          <button
+            className={tab === id && !routeVisible ? "active" : ""}
+            key={id}
+            onClick={() => switchTab(id)}
+          >
+            <Icon size={21} />
+            <span>{label}</span>
+            {id === "day" && calendarEvents.length > 0 && <i />}
+          </button>
+        ))}
+      </nav>
+      {!mobile && (
+        <button
+          className="panel-toggle"
+          aria-label={desktopHidden ? "Show campus panel" : "Hide campus panel"}
+          onClick={() => setDesktopHidden(!desktopHidden)}
+        >
+          {desktopHidden ? (
+            <PanelLeftOpen size={18} />
+          ) : (
+            <PanelLeftClose size={18} />
+          )}
+        </button>
+      )}
+      {toast && (
+        <div className="toast" role="status">
+          <Info size={17} />
+          <span>{toast}</span>
+          <button
+            aria-label="Dismiss notification"
+            onClick={() => setToast("")}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+      {about && (
+        <div className="modal-backdrop" onClick={() => setAbout(false)}>
+          <section
+            className="about-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="about-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="modal-close"
+              aria-label="Close about"
+              onClick={() => setAbout(false)}
+            >
+              <X size={22} />
+            </button>
+            <span className="eyebrow">A MORE UNDERSTANDABLE CAMPUS</span>
+            <h2 id="about-title">The intelligence underneath.</h2>
+            <p>
+              WatWay combines campus geography, your calendar, public events,
+              published occupancy, and time-dependent routing. No conversations
+              required.
+            </p>
+            <div className="about-stats">
+              <span>
+                <b>{buildings.length}</b>buildings
+              </span>
+              <span>
+                <b>{dcRooms.length}</b>mapped spaces
+              </span>
+              <span>
+                <b>{graphStats.nodes.toLocaleString()}</b>route nodes
+              </span>
+            </div>
+            <ul>
+              <li>
+                <ShieldCheck size={19} />
+                <span>
+                  <strong>Mapped, not surveyed</strong>OpenStreetMap geometry
+                  and WATIsGrass community paths. Davis ground-floor rooms are
+                  mapped; other interiors and approaches remain partial.
+                </span>
+              </li>
+              <li>
+                <Activity size={19} />
+                <span>
+                  <strong>Live where available</strong>Weather, published
+                  Warrior Rec occupancy, and public UW/WYGO listings show source
+                  freshness. Hidden event venues are not guessed.
+                </span>
+              </li>
+              <li>
+                <TrendingUp size={19} />
+                <span>
+                  <strong>Predictions are estimates</strong>Class-change demand,
+                  crowd movement, elevator queues, and link capacity are
+                  modelled. They are not live footfall sensors or verified
+                  safety capacities.
+                </span>
+              </li>
+              <li>
+                <CalendarDays size={19} />
+                <span>
+                  <strong>Your calendar stays yours</strong>Google access is
+                  read-only. Tokens stay in memory. Imported events stay on this
+                  device. Google connection needs an OAuth client ID for this
+                  installation.
+                </span>
+              </li>
+              <li>
+                <Construction size={19} />
+                <span>
+                  <strong>Construction matters</strong>Removed MC–DC and MC–M3
+                  bridges are excluded. Local signs and operating conditions
+                  take priority.
+                </span>
+              </li>
+            </ul>
+            <div className="reference-links">
+              {[
+                ["OpenStreetMap", sources.map],
+                ["Waterloo data", sources.buildings],
+                ["WATIsGrass", "https://github.com/rickyqin005/WATIsGrass"],
+                ["Accessibility", sources.accessibility],
+                ["Construction", sources.closure],
+                ["Open-Meteo", sources.weather],
+              ].map(([n, u]) => (
+                <a href={u} target="_blank" rel="noreferrer" key={n}>
+                  {n}
+                  <ExternalLink size={12} />
+                </a>
+              ))}
+            </div>
+            <p className="micro-copy">
+              Independent prototype. Not affiliated with or endorsed by the
+              University of Waterloo.
+            </p>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+function LocationInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false),
+    [q, setQ] = useState("");
+  const results = searchCampus(q, 7);
+  return (
+    <div className="location-field">
+      <label>{label}</label>
+      <input
+        aria-label={label === "From" ? "Starting point" : "Destination"}
+        value={editing ? q : resolveLocationId(value)?.name || "Your location"}
+        onFocus={() => {
+          setEditing(true);
+          setQ("");
+        }}
+        onChange={(e) => setQ(e.target.value)}
+        onBlur={() => setTimeout(() => setEditing(false), 160)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && results[0]) {
+            onChange(results[0].id);
+            setEditing(false);
+          }
+        }}
+      />
+      {editing && (
+        <div className="location-results">
+          {results.map((r) => (
+            <button
+              key={r.id}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(r.id);
+                setEditing(false);
+              }}
+            >
+              <strong>{r.name}</strong>
+              <small>{r.subtitle}</small>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function Opportunity({
+  name,
+  category,
+  minutes,
+  description,
+  onClick,
+}: {
+  name: string;
+  category: string;
+  minutes: number;
+  description: string;
+  onClick: () => void;
+}) {
+  const Icon = iconFor(category);
+  return (
+    <button className="opportunity" onClick={onClick}>
+      <span className={`place-icon ${category}`}>
+        <Icon size={23} />
+      </span>
+      <span>
+        <strong>{name}</strong>
+        <small>{description}</small>
+      </span>
+      <b>
+        {minutes}
+        <small>min</small>
+      </b>
+    </button>
+  );
+}
+function PlaceRow({
+  place,
+  onClick,
+  onRoute,
+}: {
+  place: Place;
+  onClick: () => void;
+  onRoute: () => void;
+}) {
+  const Icon = iconFor(place.category);
+  return (
+    <div className="place-row">
+      <button onClick={onClick}>
+        <span className={`place-icon ${place.category}`}>
+          <Icon size={20} />
+        </span>
+        <span>
+          <strong>{place.name}</strong>
+          <small>
+            {place.building} ·{" "}
+            {place.floor ? `Floor ${place.floor}` : "Outside"}
+            {place.confidence === "approximate" ? " · approximate" : ""}
+          </small>
+        </span>
+      </button>
+      <button
+        className="place-route"
+        aria-label={`Directions to ${place.name}`}
+        onClick={onRoute}
+      >
+        <Navigation size={17} />
+      </button>
+    </div>
+  );
+}
+function EventCard({
+  event: e,
+  onRoute,
+}: {
+  event: CampusEvent;
+  onRoute: (id: string) => void;
+}) {
+  const d = new Date(e.start);
+  return (
+    <article className="event-card">
+      <div className="event-date">
+        <span>{d.toLocaleDateString("en-CA", { month: "short" })}</span>
+        <b>{d.getDate()}</b>
+      </div>
+      <div>
+        <div className="event-source">
+          <span>{e.source}</span>
+          <small>{formatTime(e.start)}</small>
+        </div>
+        <h3>{e.title}</h3>
+        <p>
+          <MapPin size={12} />
+          {e.location?.label || e.locationText}
+        </p>
+        <div className="event-actions">
+          {e.location?.locationId ? (
+            <button onClick={() => onRoute(e.location!.locationId)}>
+              Get there
+              <ArrowRight size={13} />
+            </button>
+          ) : (
+            <small>Venue pending</small>
+          )}
+          {e.url && (
+            <a href={e.url} target="_blank" rel="noreferrer">
+              Event details
+              <ExternalLink size={12} />
+            </a>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+function FacilityCard({
+  facility: f,
+  onRoute,
+  preview,
+  predicted,
+}: {
+  facility: FacilityReading;
+  onRoute: () => void;
+  preview: boolean;
+  predicted?: number;
+}) {
+  const percent = preview ? (predicted ?? f.percent) : f.percent;
+  const fresh =
+    !preview &&
+    f.status === "live" &&
+    Date.now() - Date.parse(f.updatedAt) < 300000;
+  return (
+    <button className="facility-card" onClick={onRoute}>
+      <div>
+        <span className="facility-symbol">
+          <Activity size={21} />
+        </span>
+        <span>
+          <strong>{f.name}</strong>
+          <small>
+            {fresh
+              ? "Published just now"
+              : preview
+                ? "Predicted activity"
+                : "Cached reading"}{" "}
+            ·{" "}
+            {percent < 40
+              ? "room to move"
+              : percent < 75
+                ? "moderately busy"
+                : "busy"}
+          </small>
+        </span>
+        <b>{percent}%</b>
+      </div>
+      <div className="occupancy-track">
+        <i
+          style={{
+            width: `${Math.min(100, percent)}%`,
+            background:
+              percent > 80 ? "#d99e64" : percent > 55 ? "#d8c171" : "#83bd9e",
+          }}
+        />
+      </div>
+      <footer>
+        <span>
+          {fresh ? (
+            <>
+              <span className="status-dot" />
+              LIVE SOURCE
+            </>
+          ) : preview ? (
+            "ESTIMATE"
+          ) : (
+            "CACHED"
+          )}{" "}
+          {!preview && formatTime(f.updatedAt)}
+        </span>
+        <span>
+          Directions
+          <ChevronRight size={13} />
+        </span>
+      </footer>
+    </button>
+  );
+}
+function GameMinimap({
+  position,
+  indoor,
+  route,
+}: {
+  position: Point;
+  indoor: boolean;
+  route: Route | null;
+}) {
+  const radius = indoor ? 65 : 150,
+    x = position[0] - radius,
+    z = position[2] - radius;
+  return (
+    <div className="game-minimap">
+      <div>
+        <Compass size={13} />
+        <span>{indoor ? "INSIDE DAVIS" : "CAMPUS"}</span>
+        <b>N</b>
+      </div>
+      <svg
+        viewBox={`${x} ${z} ${radius * 2} ${radius * 2}`}
+        aria-label="Exploration minimap"
+      >
+        <rect
+          x={x}
+          y={z}
+          width={radius * 2}
+          height={radius * 2}
+          fill="#203b41"
+        />
+        {(indoor
+          ? dcRooms.map((r) => ({ id: r.id, polygon: r.points }))
+          : buildings
+        ).map((b) => (
+          <polygon
+            key={b.id}
+            points={b.polygon.map((p) => p.join(",")).join(" ")}
+            fill="#496660"
+            stroke="#78968b"
+            strokeWidth={indoor ? 0.3 : 1}
+          />
+        ))}
+        {route && (
+          <polyline
+            points={route.nodes
+              .map((n) => `${n.point[0]},${n.point[2]}`)
+              .join(" ")}
+            fill="none"
+            stroke="#edc65b"
+            strokeWidth={indoor ? 1 : 2}
+          />
+        )}
+        <circle
+          cx={position[0]}
+          cy={position[2]}
+          r={radius * 0.045}
+          fill="#ffd568"
+          stroke="#fff8d3"
+          strokeWidth={radius * 0.012}
+        />
+      </svg>
+      <small>Exploration position · not GPS</small>
+    </div>
+  );
+}

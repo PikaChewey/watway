@@ -1,9 +1,245 @@
-import {buildings,places,findRoom,resolveLocation,buildingById,categoryNames}from'./data/campus';
-import {computeRoute,minutes}from'./routing';
-import type {Place,RouteProfile,Weather}from'./types';
-export interface SearchResult{id:string;name:string;subtitle:string;category:string;score:number;building:string;place?:Place;reason?:string;minutes?:number}
-const normalize=(s:string)=>s.toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
-const synonyms:Record<string,string[]>={study:['work','focus','concentrate','revision','revise','homework','read','reading','desk','seat','library'],food:['eat','eating','hungry','lunch','dinner','breakfast','meal','snack','cafe','coffee'],washroom:['bathroom','toilet','pee','restroom','washroom'],water:['thirsty','drink','refill','fountain','bottle'],printer:['printing','print','printer'],quiet:['silent','silence','peaceful','calm','quiet','focus'],outlets:['plug','power','charge','charging','socket','outlet','outlets'],transit:['bus','train','ion','lrt','station'],bike:['bicycle','bike','rack','cycling']};
-export function searchCampus(query:string,limit=12):SearchResult[]{const q=normalize(query);if(!q)return buildings.filter(b=>['DC','MC','SLC','LIB','E5','QNC'].includes(b.id)).map(b=>({id:b.id,name:b.shortName,subtitle:b.id+' · '+b.floors+' floors',category:'academic',score:1,building:b.id}));const exactRoom=findRoom(query);const tokens=q.split(' ');const expanded=new Set(tokens);for(const[k,v]of Object.entries(synonyms))if(v.some(t=>tokens.includes(t)))expanded.add(k);const results:SearchResult[]=[];for(const b of buildings){const text=normalize(`${b.id} ${b.name} ${b.shortName} ${b.aliases.join(' ')}`);let score=0;if(normalize(b.id)===q||b.aliases.some(a=>normalize(a)===q))score=100;else if(text.includes(q))score=50;else for(const t of expanded)if(text.includes(t))score+=t.length>2?8:0;if(score)results.push({id:b.id,name:b.shortName,subtitle:`${b.id} · ${b.floors} floors`,category:b.category,score,building:b.id})}for(const p of places){const text=normalize(`${p.name} ${p.tags.join(' ')} ${p.category}`);let score=exactRoom?.id===p.id?150:text.includes(q)?60:0;for(const t of expanded)if(t.length>2&&text.includes(t))score+=8;if(p.category!=='room'&&expanded.has(p.category))score+=18;if(expanded.has('quiet')&&p.tags.includes('quiet'))score+=18;if(expanded.has('outlets')&&p.tags.includes('outlets'))score+=15;if(score)results.push({id:p.id,name:p.name,subtitle:`${categoryNames[p.category]} · ${p.building}${p.floor?` · Floor ${p.floor}`:''}`,category:p.category,score,building:p.building,place:p})}return results.sort((a,b)=>b.score-a.score).slice(0,limit)}
-export interface AssistantResult{answer:string;results:SearchResult[];route?:{from:string;to:string;profile:RouteProfile};filters:string[]}
-export async function askCampus(query:string,from:string,nextClass:string|undefined,weather:Weather,semanticScores?:Record<string,number>):Promise<AssistantResult>{const q=normalize(query);const filters:string[]=[];let profile:RouteProfile='fastest';if(/wheelchair|step free|accessible|no stairs|without stairs|avoid stairs/.test(q)){profile='accessible';filters.push('Step-free')}else if(/indoor|dry|rain|snow|weather|warm|covered/.test(q)){profile='weather';filters.push('Weather protected')}const routeMatch=query.match(/(?:from\s+)(.+?)\s+to\s+(.+?)(?:\s+(?:indoors|without|and|in the|avoiding).*)?$/i);let routeFrom=from,routeTo:string|undefined;if(routeMatch){routeFrom=searchCampus(routeMatch[1],1)[0]?.id||from;routeTo=searchCampus(routeMatch[2],1)[0]?.id}else if(/next class/.test(q)&&!/study|coffee|food|quiet|outlet|space|water|print/.test(q))routeTo=nextClass;else if(/take me|navigate|directions|route to|get to|go to/.test(q)){const match=query.replace(/.*?(?:take me to|navigate to|directions to|route to|get to|go to)\s*/i,'');routeTo=searchCampus(match,1)[0]?.id}if(routeTo){const r=computeRoute(routeFrom,routeTo,profile,weather);return {answer:r?`${resolveLocation(routeTo)?.name}: about ${minutes(r)} min from ${resolveLocation(routeFrom)?.name||'your location'}. ${r.indoorPercent}% of this route is indoors.${r.estimated?' Check signs for the final indoor approach.':''}`:'I could not find a connected route for those locations. Try a nearby campus building.',results:[],route:r?{from:routeFrom,to:routeTo,profile}:undefined,filters}}const quiet=/quiet|silent|focus|calm|peaceful/.test(q),outlets=/outlet|power|charg|plug|socket/.test(q);if(quiet)filters.push('Quiet');if(outlets)filters.push('Power outlets');const maxMinutes=q.match(/(?:within|under|less than)\s+(\d+)\s*(?:min|minute)/);if(maxMinutes)filters.push(`Within ${maxMinutes[1]} min`);const nearMatch=query.match(/(?:near|around|close to)\s+([A-Z]{1,3}\d?)(?:\b|$)/i);const nearOrigin=nearMatch?searchCampus(nearMatch[1],1)[0]?.id:undefined;const origin=/next class/.test(q)&&nextClass?nextClass:nearOrigin||from;let results=searchCampus(query,100).filter(r=>r.place&&r.category!=='room');if(semanticScores){for(const p of places.filter(p=>p.category!=='room')){const score=semanticScores[p.id]||0;if(score>.2&&!results.some(r=>r.id===p.id))results.push({id:p.id,name:p.name,subtitle:`${categoryNames[p.category]} · ${p.building}`,category:p.category,building:p.building,place:p,score:score*35})}for(const r of results)r.score+=(semanticScores[r.id]||0)*20}if(quiet)results=results.filter(r=>r.place!.tags.includes('quiet')||r.place!.tags.includes('silent'));if(outlets)results=results.filter(r=>r.place!.tags.includes('outlets'));for(const r of results){const route=computeRoute(origin,r.id,profile,weather);r.minutes=route?minutes(route):undefined;r.reason=`${r.minutes===undefined?'Route unavailable':`${r.minutes} min from ${resolveLocation(origin)?.name||origin}`}${quiet?' · quiet study':''}${outlets?' · outlet availability varies':''}`;r.score-=r.minutes||30}if(maxMinutes)results=results.filter(r=>r.minutes!==undefined&&r.minutes<=Number(maxMinutes[1]));results=results.sort((a,b)=>b.score-a.score).slice(0,3);const answer=results.length?`I found ${results.length===1?'a good match':`${results.length} options`}${origin===nextClass?' near your next class':''}. ${results[0].name} is ${results[0].minutes} min away.${outlets?' Outlet locations and free seats are not live.':''}${maxMinutes?' All matches meet your walking-time limit.':''}`:`No matching places fit those constraints${maxMinutes?` within ${maxMinutes[1]} minutes`:''}. Try a longer walking time or fewer requirements.`;return{answer,results,filters}}
+import {
+  buildings,
+  places,
+  findRoom,
+  resolveLocation,
+  buildingById,
+  categoryNames,
+} from "./data/campus";
+import { computeRoute, minutes } from "./routing";
+import type { Place, RouteProfile, Weather } from "./types";
+export interface SearchResult {
+  id: string;
+  name: string;
+  subtitle: string;
+  category: string;
+  score: number;
+  building: string;
+  place?: Place;
+  reason?: string;
+  minutes?: number;
+}
+const normalize = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+const synonyms: Record<string, string[]> = {
+  study: [
+    "work",
+    "focus",
+    "concentrate",
+    "revision",
+    "revise",
+    "homework",
+    "read",
+    "reading",
+    "desk",
+    "seat",
+    "library",
+  ],
+  food: [
+    "eat",
+    "eating",
+    "hungry",
+    "lunch",
+    "dinner",
+    "breakfast",
+    "meal",
+    "snack",
+    "cafe",
+    "coffee",
+  ],
+  washroom: ["bathroom", "toilet", "pee", "restroom", "washroom"],
+  water: ["thirsty", "drink", "refill", "fountain", "bottle"],
+  printer: ["printing", "print", "printer"],
+  quiet: ["silent", "silence", "peaceful", "calm", "quiet", "focus"],
+  outlets: [
+    "plug",
+    "power",
+    "charge",
+    "charging",
+    "socket",
+    "outlet",
+    "outlets",
+  ],
+  transit: ["bus", "train", "ion", "lrt", "station"],
+  bike: ["bicycle", "bike", "rack", "cycling"],
+};
+export function searchCampus(query: string, limit = 12): SearchResult[] {
+  const q = normalize(query);
+  if (!q)
+    return buildings
+      .filter((b) => ["DC", "MC", "SLC", "LIB", "E5", "QNC"].includes(b.id))
+      .map((b) => ({
+        id: b.id,
+        name: b.shortName,
+        subtitle: b.id + " · " + b.floors + " floors",
+        category: "academic",
+        score: 1,
+        building: b.id,
+      }));
+  const exactRoom = findRoom(query);
+  const tokens = q.split(" ");
+  const expanded = new Set(tokens);
+  for (const [k, v] of Object.entries(synonyms))
+    if (v.some((t) => tokens.includes(t))) expanded.add(k);
+  const results: SearchResult[] = [];
+  for (const b of buildings) {
+    const text = normalize(
+      `${b.id} ${b.name} ${b.shortName} ${b.aliases.join(" ")}`,
+    );
+    let score = 0;
+    if (normalize(b.id) === q || b.aliases.some((a) => normalize(a) === q))
+      score = 100;
+    else if (text.includes(q)) score = 50;
+    else
+      for (const t of expanded)
+        if (text.includes(t)) score += t.length > 2 ? 8 : 0;
+    if (score)
+      results.push({
+        id: b.id,
+        name: b.shortName,
+        subtitle: `${b.id} · ${b.floors} floors`,
+        category: b.category,
+        score,
+        building: b.id,
+      });
+  }
+  for (const p of places) {
+    const text = normalize(`${p.name} ${p.tags.join(" ")} ${p.category}`);
+    let score = exactRoom?.id === p.id ? 150 : text.includes(q) ? 60 : 0;
+    for (const t of expanded) if (t.length > 2 && text.includes(t)) score += 8;
+    if (p.category !== "room" && expanded.has(p.category)) score += 18;
+    if (expanded.has("quiet") && p.tags.includes("quiet")) score += 18;
+    if (expanded.has("outlets") && p.tags.includes("outlets")) score += 15;
+    if (score)
+      results.push({
+        id: p.id,
+        name: p.name,
+        subtitle: `${categoryNames[p.category]} · ${p.building}${p.floor ? ` · Floor ${p.floor}` : ""}`,
+        category: p.category,
+        score,
+        building: p.building,
+        place: p,
+      });
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+export interface AssistantResult {
+  answer: string;
+  results: SearchResult[];
+  route?: { from: string; to: string; profile: RouteProfile };
+  filters: string[];
+}
+export async function askCampus(
+  query: string,
+  from: string,
+  nextClass: string | undefined,
+  weather: Weather,
+  semanticScores?: Record<string, number>,
+): Promise<AssistantResult> {
+  const q = normalize(query);
+  const filters: string[] = [];
+  let profile: RouteProfile = "fastest";
+  if (
+    /wheelchair|step free|accessible|no stairs|without stairs|avoid stairs/.test(
+      q,
+    )
+  ) {
+    profile = "accessible";
+    filters.push("Step-free");
+  } else if (/indoor|dry|rain|snow|weather|warm|covered/.test(q)) {
+    profile = "weather";
+    filters.push("Weather protected");
+  }
+  const routeMatch = query.match(
+    /(?:from\s+)(.+?)\s+to\s+(.+?)(?:\s+(?:indoors|without|and|in the|avoiding).*)?$/i,
+  );
+  let routeFrom = from,
+    routeTo: string | undefined;
+  if (routeMatch) {
+    routeFrom = searchCampus(routeMatch[1], 1)[0]?.id || from;
+    routeTo = searchCampus(routeMatch[2], 1)[0]?.id;
+  } else if (
+    /next class/.test(q) &&
+    !/study|coffee|food|quiet|outlet|space|water|print/.test(q)
+  )
+    routeTo = nextClass;
+  else if (/take me|navigate|directions|route to|get to|go to/.test(q)) {
+    const match = query.replace(
+      /.*?(?:take me to|navigate to|directions to|route to|get to|go to)\s*/i,
+      "",
+    );
+    routeTo = searchCampus(match, 1)[0]?.id;
+  }
+  if (routeTo) {
+    const r = computeRoute(routeFrom, routeTo, profile, weather);
+    return {
+      answer: r
+        ? `${resolveLocation(routeTo)?.name}: about ${minutes(r)} min from ${resolveLocation(routeFrom)?.name || "your location"}. ${r.indoorPercent}% of this route is indoors.${r.estimated ? " Check signs for the final indoor approach." : ""}`
+        : "I could not find a connected route for those locations. Try a nearby campus building.",
+      results: [],
+      route: r ? { from: routeFrom, to: routeTo, profile } : undefined,
+      filters,
+    };
+  }
+  const quiet = /quiet|silent|focus|calm|peaceful/.test(q),
+    outlets = /outlet|power|charg|plug|socket/.test(q);
+  if (quiet) filters.push("Quiet");
+  if (outlets) filters.push("Power outlets");
+  const maxMinutes = q.match(
+    /(?:within|under|less than)\s+(\d+)\s*(?:min|minute)/,
+  );
+  if (maxMinutes) filters.push(`Within ${maxMinutes[1]} min`);
+  const nearMatch = query.match(
+    /(?:near|around|close to)\s+([A-Z]{1,3}\d?)(?:\b|$)/i,
+  );
+  const nearOrigin = nearMatch
+    ? searchCampus(nearMatch[1], 1)[0]?.id
+    : undefined;
+  const origin =
+    /next class/.test(q) && nextClass ? nextClass : nearOrigin || from;
+  let results = searchCampus(query, 100).filter(
+    (r) => r.place && r.category !== "room",
+  );
+  if (semanticScores) {
+    for (const p of places.filter((p) => p.category !== "room")) {
+      const score = semanticScores[p.id] || 0;
+      if (score > 0.2 && !results.some((r) => r.id === p.id))
+        results.push({
+          id: p.id,
+          name: p.name,
+          subtitle: `${categoryNames[p.category]} · ${p.building}`,
+          category: p.category,
+          building: p.building,
+          place: p,
+          score: score * 35,
+        });
+    }
+    for (const r of results) r.score += (semanticScores[r.id] || 0) * 20;
+  }
+  if (quiet)
+    results = results.filter(
+      (r) =>
+        r.place!.tags.includes("quiet") || r.place!.tags.includes("silent"),
+    );
+  if (outlets)
+    results = results.filter((r) => r.place!.tags.includes("outlets"));
+  for (const r of results) {
+    const route = computeRoute(origin, r.id, profile, weather);
+    r.minutes = route ? minutes(route) : undefined;
+    r.reason = `${r.minutes === undefined ? "Route unavailable" : `${r.minutes} min from ${resolveLocation(origin)?.name || origin}`}${quiet ? " · quiet study" : ""}${outlets ? " · outlet availability varies" : ""}`;
+    r.score -= r.minutes || 30;
+  }
+  if (maxMinutes)
+    results = results.filter(
+      (r) => r.minutes !== undefined && r.minutes <= Number(maxMinutes[1]),
+    );
+  results = results.sort((a, b) => b.score - a.score).slice(0, 3);
+  const answer = results.length
+    ? `I found ${results.length === 1 ? "a good match" : `${results.length} options`}${origin === nextClass ? " near your next class" : ""}. ${results[0].name} is ${results[0].minutes} min away.${outlets ? " Outlet locations and free seats are not live." : ""}${maxMinutes ? " All matches meet your walking-time limit." : ""}`
+    : `No matching places fit those constraints${maxMinutes ? ` within ${maxMinutes[1]} minutes` : ""}. Try a longer walking time or fewer requirements.`;
+  return { answer, results, filters };
+}

@@ -1,10 +1,10 @@
 # WATWay
 
-A 3D University of Waterloo campus navigator with mapped indoor spaces, route planning, weather, and local semantic AI.
+A mobile-first University of Waterloo campus companion: 3D navigation, proactive destination cards, calendar-aware routes, and live public campus information.
 
-## Run locally
+## Run
 
-Use Node.js 22 or newer and npm.
+Node.js 22 or newer and npm are recommended.
 
 ```bash
 git clone https://github.com/PikaChewey/looroute.git
@@ -13,55 +13,65 @@ npm ci
 npm run dev
 ```
 
-Open **http://localhost:5173/**. No API keys or environment variables are required. Port 5173 must be available.
+Open **http://localhost:5173/**. No paid services are required. Port 5173 must be available.
 
 ```bash
-npm test        # Routing, accessibility preference, search, and collision checks
-npm run build  # TypeScript validation and production bundle
+npm test
+npm run build
 npm run preview
 ```
 
-## Try these flows
+The Vite development and preview servers include the campus feed API. A plain static host can show the cached public snapshot but cannot refresh the server-side feeds without hosting the API.
 
-- **Explore indoors → Walk:** enter the mapped Davis Centre ground floor. **WASD** moves, **drag** looks, **Shift** runs, and **M** toggles the map. **Follow** is the third-person camera. Keys **1 / 2 / 3** select map / follow / walk.
-- Search **DC 1350**, select Directions, and compare Fastest, Shortest, Most indoor, Step-free, Least stairs, and Weather-smart.
-- **Preview walk** simulates a trip and transitions into building interiors. It is not GPS guidance.
-- **Ask WAT:** try “Find a quiet study space with outlets within 5 minutes of my next class.” Enable the local AI model for semantic matching. Its first download requires internet; structured search works without it.
-- **My day:** replace the sample schedule, select weekdays, and add your classes. Leave-by times include a three-minute buffer. Schedules and saved places stay in this browser's local storage; they are not shared between teammates.
-- The weather menu fetches Open-Meteo conditions and offers simulated rain, snow, sun, and fog. Layers includes seasons and night mode.
+## What works
 
-## Coverage and accuracy
+- **For you:** upcoming destination, leave-by time, route exposure, and useful stops that fit gaps in your schedule. The initial classes are explicitly labelled samples.
+- **Explore:** 56 buildings, campus amenities, mapped footprints, saved places, and semantic search. Longer searches can load a local embedding model; no conversational UI or external LLM calls.
+- **My day:** recurring class entry, read-only Google Calendar integration, `.ics` import with recurrence and exceptions, and review of unresolved locations. Personal calendar data stays in this browser's local storage.
+- **Campus:** published Warrior Rec occupancy, UW/WYGO/Luma public events, campus-only venue filtering, deduplication, and public Luma/Partiful/WYGO event-link import where details are available.
+- **Time preview:** scrub through the day to change predicted activity, route costs, lighting, and available weather forecasts. Predictions are clearly differentiated from current source readings.
+- **3D:** map, orbit, first-person, and third-person views; mapped Davis interior walls and doors; WATIsGrass bridge/tunnel geometry and partial hallway overlays; seasons, weather, day/night, simulated pedestrians and vehicles; adaptive and battery-saving quality modes.
+- **Routes:** shortest/fastest/indoor/step-free/least-stairs/weather-aware preferences, mapped stair exclusions, modeled congestion costs, and animated walkthroughs.
+- **Offline shell:** production builds register a service worker that caches visited app assets and public map data. Private API responses and Google Calendar requests are not cached by the service worker. Live updates require connectivity.
 
-- **56 campus buildings**, with locations from Waterloo's public building dataset.
-- Campus footprints and paths from OpenStreetMap.
-- **128 mapped Davis ground-floor spaces**, with room outlines, doors, collision walls, and a walkable routing graph.
-- Public MC floor plans for floors 2, 3, and 6, available from the building panel.
-- Other interiors, some entrances, vertical circulation, and indoor connections remain partial or schematic.
-- Heights, travel times, congestion, and elevator waits are estimates. Opening hours, lift status, room availability, and temporary closures are not live verified feeds.
-- Removed MC–DC and MC–M3 bridges are excluded. Follow campus signs around construction.
+### Controls
 
-The in-app **Data & accuracy** panel includes sources and limitations. WATWay is an independent prototype, not an official university service.
+**Go inside → Walk** enters an interior. **WASD** moves, **drag** looks, **Shift** runs, and **M** switches the map. **1 / 2 / 3** selects map / follow / walk. Mobile has touch movement controls and a collapsible bottom sheet. **⌘/Ctrl K** opens search.
 
-## Project structure
+## Google Calendar setup
+
+The integration is implemented, but each installation needs a Google OAuth **Web application client ID** before real sign-in can succeed. This repository does not include one.
+
+1. Enable Google Calendar API in your Google Cloud project and configure its consent screen.
+2. Create a Web application OAuth client and add `http://localhost:5173` as an authorized JavaScript origin (and your actual deployed origin if applicable).
+3. Set `VITE_GOOGLE_CLIENT_ID` in a local `.env` using `.env.example`, or enter the public client ID in the in-app connection setup.
+4. In **My day**, choose **Connect Google** and grant read-only calendar/event access. Select the calendars to sync.
+
+Access tokens stay in memory. Sync refreshes every five minutes while the app is visible and permission is valid. Google may require a reconnect when the token expires. Disconnect removes the imported Google events. `.ics` import works immediately without OAuth setup.
+
+Calendar titles alone do not invent classroom assignments. Unresolved locations are shown for review; known Waterloo names, nicknames, building codes, and room fields are resolved locally. Private or hidden event venues are not guessed.
+
+## Data and limits
+
+The app uses public building coordinates, OpenStreetMap geometry, WATIsGrass community paths, public university floor-plan references, Open-Meteo, Warrior Athletics occupancy, Waterloo Events, WYGO, and Luma. Source freshness and provenance are shown in the app. Partiful ingestion requires a readable public event link or a calendar file; there is no private Partiful account integration.
+
+Davis ground-floor room outlines and doors are mapped. Other interior coverage is partial, with schematic approaches and inferred heights. WATIsGrass path files retain their original GPL-3.0 license and attribution. Removed MC–DC and MC–M3 bridges are excluded.
+
+Crowd flows use curated class-change demand assumptions, not a complete live university timetable. Link capacities, queue waits, and bottleneck calculations are estimates—not measured safety capacities. The graph includes a coarse max-flow/min-cut utility with tests. Actual door access, elevator operation, room availability, dining hours, and most temporary closures are not verified live. Follow campus signs.
+
+See [DATA-SOURCES.md](DATA-SOURCES.md). WATWay is an independent prototype, not an official university service.
+
+## Code
 
 | Location | Purpose |
 | --- | --- |
-| `src/App.tsx` | Search, directions, schedule, assistant, and interface |
-| `src/ThreeMap.tsx` | Three.js scene, cameras, movement, and visualization |
-| `src/routing.ts` | Navigation graph, route preferences, and directions |
-| `src/indoor.ts` | Mapped Davis geometry, wall collisions, and room ingestion |
-| `src/data/` | Checked-in campus geography and semantic place catalog |
-| `src/semantic.ts` | Grounded intent parsing and campus recommendations |
-| `src/semantic.worker.ts` | Optional local embedding model in a Web Worker |
-| `src/weather.ts` | Open-Meteo integration and fallback handling |
-| `src/routing.test.ts` | Core navigation checks |
-| `public/floorplans/` | Public university reference plans |
-| `scripts/prepare-data.py` | Optional ingestion script; requires downloaded source files in `work/` |
+| `src/App.tsx`, `src/CalendarPanel.tsx` | Mobile-first UI, contextual cards, calendar flows |
+| `src/ThreeMap.tsx` | Rendering, camera modes, movement, weather, scene activity |
+| `src/routing.ts`, `src/indoor.ts` | Route graph, preferences, mapped interiors, collision walls |
+| `src/intelligence/` | Calendar ingestion, venue resolution, reconciliation, state, flow estimates, tests |
+| `server/feeds.ts`, `server/plugin.ts` | Cached public-feed adapters and Vite API middleware |
+| `src/data/` | Campus model, geometry, and community path integration |
+| `public/data/` | Public fallback snapshot and original licensed WATIsGrass dataset |
+| `public/sw.js` | Production offline asset caching |
 
-The checked-in data is sufficient to run the app. Data ingestion is not part of startup. The scene is a view of the campus model; it is not the routing source of truth.
-
-## Working together
-
-Create a feature branch, run the checks above, and open a pull request. Keep data provenance explicit when replacing schematic geometry with better measurements or plans. Do not commit credentials, local schedules, generated builds, or `node_modules`.
-
-See [DATA-SOURCES.md](DATA-SOURCES.md) for provenance. Third-party data and reference plans retain their original terms.
+Use a feature branch for changes and run the tests and production build before opening a pull request. Never commit credentials or personal calendars. Generated builds, scratch files, `.env`, and `node_modules` are ignored.
