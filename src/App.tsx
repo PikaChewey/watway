@@ -1,3 +1,5 @@
+import DemoPlayback from "./DemoPlayback";
+import { presentation } from "./intelligence/presentation";
 import AlgorithmPanel from "./AlgorithmPanel";
 import { StudentStory, StudentWeek, StudentProfile } from "./StudentDemo";
 import { DEMO_DAY, studentWeek, chapters, type DemoChapter } from "./intelligence/student-demo";
@@ -235,6 +237,10 @@ class SceneBoundary extends Component<
   }
 }
 export default function App() {
+  const [autoWalkPending, setAutoWalkPending] = useState(false);
+  const [autoIndex, setAutoIndex] = useState<number | null>(null);
+  const [autoPaused, setAutoPaused] = useState(false);
+  const [autoElapsed, setAutoElapsed] = useState(0);
   const [engineOpen, setEngineOpen] = useState(false);
   const [demoStudentActive, setDemoStudentActive] = useState(true);
   const [studentProfileOpen, setStudentProfileOpen] = useState(false);
@@ -631,9 +637,55 @@ export default function App() {
   useEffect(() => {
     if (!pendingPitch || !pitchActive || !route || !map.current) return;
     map.current.rehearse(route);
-    setPlaying(pendingPitch === "guided");
+    setPlaying(pendingPitch === "guided" && !(autoIndex !== null && autoPaused));
     setPendingPitch(null);
   }, [pendingPitch, pitchActive, route]);
+  const stopFullDemo = () => {
+    setAutoWalkPending(false); setAutoIndex(null); setAutoPaused(false); setEngineOpen(false); setStudentProfileOpen(false);
+    chooseChapter(chapters[0]);
+  };
+  const advanceFullDemo = () => {
+    if (autoIndex === presentation.length - 1) { stopFullDemo(); setToast("Demo complete. Ready to present again."); }
+    else {setAutoIndex(i => i === null ? 0 : i + 1); setAutoElapsed(0);}
+  };
+  useEffect(() => {
+    if (autoIndex === null) return;
+    const scene = presentation[autoIndex];
+    setAutoWalkPending(false); setAutoElapsed(0); setEngineOpen(false); setStudentProfileOpen(false); setPlaying(false);
+    if(scene.kind === "chapter") chooseChapter(chapters[scene.chapter]);
+    else if(scene.kind === "profile") {chooseChapter(chapters[0]);setStudentProfileOpen(true);}
+    else if(scene.kind === "week") {chooseChapter(chapters[0]);setTab("day");setSheet("full");}
+    else if(scene.kind === "engine") {
+      chooseChapter(chapters[0]); setEngineOpen(true);
+      if('dry' in scene) {setWeatherMode("sun");setSeason("summer");}
+      if(scene.stage === 3) setScrub(775);
+    } else if(scene.kind === "interior") {
+      chooseChapter(chapters[0]); startRoute("room-MC-4020","MC"); setSpeed(3); setProgress(0);setAutoWalkPending(true);
+    } else if(scene.kind === "walk") {chooseChapter(chapters[6]);startPitch("guided");}
+  }, [autoIndex]);
+  useEffect(() => {
+    if(!autoWalkPending || !routeVisible || !route || !ready) return;
+    if(route.physical && map.current) {map.current.rehearse(route);setMode("first");setSheet("peek");setPlaying(!autoPaused);}
+    else {setAutoPaused(true);setToast("Classroom route preview unavailable. Use Next scene to continue.");}
+    setAutoWalkPending(false);
+  },[autoWalkPending,routeVisible,route,ready,autoPaused]);
+  useEffect(() => {
+    if(autoIndex === null || autoPaused || !ready) return;
+    const timer=setInterval(()=>{if(document.visibilityState === "visible")setAutoElapsed(t=>t+.25);},250);
+    return ()=>clearInterval(timer);
+  }, [autoIndex,autoPaused,ready]);
+  useEffect(() => {
+    if(autoIndex === null || autoPaused) return;
+    const scene=presentation[autoIndex];
+    if(scene.kind === "walk" || scene.kind === "interior") {
+      if(progress >= 1 && autoElapsed > 3) advanceFullDemo();
+      else if(autoElapsed > 100) {setAutoPaused(true);setPlaying(false);setToast("Walk paused. Resume or skip to the next scene.");}
+    } else if(autoElapsed >= scene.seconds) advanceFullDemo();
+  },[autoIndex,autoPaused,autoElapsed,progress]);
+  const toggleFullDemo = () => {
+    setAutoPaused(!autoPaused);
+    if(autoIndex !== null && ["walk","interior"].includes(presentation[autoIndex].kind))setPlaying(autoPaused);
+  };
   const walk = (preview = false, m: CameraMode = "first") => {
     setVisualMode("realistic");
     setMode(preview ? "first" : m);
@@ -727,9 +779,10 @@ export default function App() {
   ] as const;
   return (
     <div
-      className={`watway ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
+      className={`watway ${autoIndex !== null ? `presenting ${autoPaused ? "presentation-paused" : ""}` : ""} ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
     >
-      {engineOpen && <AlgorithmPanel route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
+      {autoIndex !== null && <DemoPlayback index={autoIndex} paused={autoPaused} elapsed={autoElapsed} walkProgress={progress} onPause={toggleFullDemo} onNext={advanceFullDemo} onRestart={()=>{setAutoIndex(null);setAutoPaused(false);setTimeout(()=>setAutoIndex(0),0);}} onStop={stopFullDemo}/>}
+      {engineOpen && <AlgorithmPanel presentationStage={autoIndex !== null && presentation[autoIndex].kind === "engine" ? (presentation[autoIndex] as {stage:number}).stage : undefined} route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
       {studentProfileOpen && <StudentProfile onClose={() => setStudentProfileOpen(false)} onPersonal={() => {setDemoStudentActive(false); setStudentProfileOpen(false); setScrub(null); setFrom("SLC"); switchTab("day"); setVisualMode("realistic"); setMode("orbit"); setWeatherMode("live");}}/>}
       <header className="app-header">
         <a
@@ -818,7 +871,7 @@ export default function App() {
               selected={selected}
               onSelect={selectBuilding}
               mode={mode}
-              route={routeVisible ? route : null}
+              route={routeVisible ? route : autoIndex !== null ? nextRoute : null}
               progress={progress}
               playing={playing}
               indoor={indoor}
@@ -836,6 +889,7 @@ export default function App() {
               onTraversalProgress={(p, blocked, done) => {
                 setProgress(p);
                 if (blocked) {
+                  if(autoIndex !== null) setAutoPaused(true);
                   setPlaying(false);
                   setToast(
                     "Stopped at a physical obstruction. You can take over with WASD.",
@@ -1398,7 +1452,7 @@ export default function App() {
               <span className="status-dot" />
               <strong>
                 {progress >= 1
-                  ? "Arrived at Arts Lecture Hall"
+                  ? `Arrived at ${resolveLocation(to)?.name || "your destination"}`
                   : pitchActive
                     ? "SCH → AL · " +
                       (playing ? "guided walk" : "you’re in control")
@@ -1736,7 +1790,7 @@ export default function App() {
                   <Navigation size={28} />
                 </span>
               </div>
-              {demoStudentActive ? <StudentStory at={at} onChapter={chooseChapter} onProfile={() => setStudentProfileOpen(true)} onTunnel={() => startPitch("guided")}/> : <button className="secondary" onClick={() => chooseChapter(chapters[0])}>Follow Maya’s demo day</button>}
+              {demoStudentActive ? <StudentStory onPlay={()=>{setAutoPaused(false);setAutoIndex(0);}} presenting={autoIndex !== null} at={at} onChapter={chooseChapter} onProfile={() => setStudentProfileOpen(true)} onTunnel={() => startPitch("guided")}/> : <button className="secondary" onClick={() => chooseChapter(chapters[0])}>Follow Maya’s demo day</button>}
               <button
                 className="current-origin"
                 onClick={() => {

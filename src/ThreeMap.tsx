@@ -855,6 +855,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
       if (current.mode === "first" || current.mode === "third") {
         if (s.pendingSpawn) {
           player.copy(v(s.pendingSpawn.point));
+          camera.position.copy(player).add(new THREE.Vector3(0,1.65,0));
           s.yaw = s.pendingSpawn.yaw || 0;
           s.pendingSpawn = null;
           s.hasSpawned = true;

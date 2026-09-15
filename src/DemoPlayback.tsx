@@ -1,0 +1,6 @@
+import { Pause, Play, RotateCcw, SkipForward, X } from 'lucide-react';
+import { presentation } from './intelligence/presentation';
+export default function DemoPlayback({index,paused,elapsed,walkProgress,onPause,onNext,onRestart,onStop}:{index:number;paused:boolean;elapsed:number;walkProgress:number;onPause:()=>void;onNext:()=>void;onRestart:()=>void;onStop:()=>void}) {
+ const scene=presentation[index];
+ return <section className="demo-director" aria-label="Presentation controls"><div className="director-progress">{presentation.map((_,i)=><i key={i} className={i<index?'complete':i===index?'current':''}/>)}</div><div className="director-title"><span>{index+1}/{presentation.length} · {paused?'PAUSED':'DEMO PLAYING'}</span><strong>{scene.title}</strong><button aria-label="Stop full demo" onClick={onStop}><X size={18}/></button></div><p>{scene.cue}</p><div className="director-actions"><button onClick={onPause}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'Resume':'Pause'}</button><button onClick={onNext}><SkipForward size={16}/>{index===presentation.length-1?'Finish':'Next scene'}</button><button onClick={onRestart} aria-label="Restart full demo"><RotateCcw size={16}/></button><small>{['walk','interior'].includes(scene.kind)?`Walk ${Math.round(walkProgress*100)}%`:`${Math.max(0,scene.seconds-Math.floor(elapsed))}s`}</small></div></section>;
+}

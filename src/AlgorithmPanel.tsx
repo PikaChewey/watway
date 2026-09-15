@@ -1,17 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, ArrowRight, Cpu, GitBranch, Route as RouteIcon, ShieldCheck, Snowflake, X } from 'lucide-react';
 import { connections } from './data/campus';
 import { buildingMinCut, type FlowResult } from './intelligence/state';
 import { graphStats, weatherCostModel } from './routing';
 import type { Route, Weather } from './types';
-export default function AlgorithmPanel({route,flow,weather,at,frozen,onWeather,onTraffic,onClose}:{route:Route|null;flow:FlowResult;weather:Weather;at:Date;frozen:boolean;onWeather:(snow:boolean)=>void;onTraffic:(busy:boolean)=>void;onClose:()=>void}) {
+export default function AlgorithmPanel({presentationStage,route,flow,weather,at,frozen,onWeather,onTraffic,onClose}:{presentationStage?:number;route:Route|null;flow:FlowResult;weather:Weather;at:Date;frozen:boolean;onWeather:(snow:boolean)=>void;onTraffic:(busy:boolean)=>void;onClose:()=>void}) {
  const [narrow,setNarrow]=useState(false);
+ const panel=useRef<HTMLElement>(null);
+ useEffect(()=>{
+   if(presentationStage===undefined)return;
+   panel.current?.querySelectorAll('article')[presentationStage]?.scrollIntoView({block:'start',behavior:'smooth'});
+   setNarrow(false);
+   if(presentationStage===2){const timer=setTimeout(()=>setNarrow(true),4500);return()=>clearTimeout(timer);}
+ },[presentationStage]);
  const model=weatherCostModel(weather), winter=model.label==='Winter snow';
  const cut=useMemo(()=>buildingMinCut('MC','DC',connections.map(([from,to,kind])=>({from,to,capacity:from==='MC'&&to==='QNC'&&narrow?16:kind==='bridge'?60:kind==='tunnel'?35:90}))),[narrow]);
  const cost=route?.edges.filter(e=>e.kind==='outdoor').reduce((s,e)=>s+e.distance/1.35*(model.outdoorMultiplier-1),0)||0;
  const points:Record<string,[number,number]>={MC:[20,40],QNC:[70,40],B2:[120,40],B1:[170,40],ESC:[220,40],C2:[267,18],EIT:[267,75],DC:[325,40]};
  const links=connections.filter(([a,b])=>points[a]&&points[b]);
- return <div className="engine-backdrop" onClick={onClose}><section role="dialog" aria-modal="true" aria-labelledby="engine-title" className="engine-panel" onClick={e=>e.stopPropagation()} onKeyDown={e=>{if(e.key==='Escape')onClose();}}>
+ return <div className="engine-backdrop" onClick={onClose}><section ref={panel} role="dialog" aria-modal="true" aria-labelledby="engine-title" className="engine-panel" onClick={e=>e.stopPropagation()} onKeyDown={e=>{if(e.key==='Escape')onClose();}}>
   <button autoFocus className="engine-close" aria-label="Close algorithm panel" onClick={onClose}><X size={22}/></button>
   <span className="eyebrow">WATWAY ENGINE · JUDGE VIEW</span><h1 id="engine-title">See the decisions.</h1><p className="engine-lede">Real algorithms. Repeatable demo inputs. Every control below recomputes a result.</p>
   <div className="engine-live"><span/>{at.toLocaleTimeString('en-CA',{hour:'2-digit',minute:'2-digit'})} · {frozen?'Curated tunnel playback':'Computing Maya’s route'} · {winter?'Winter scenario':'Dry scenario'}</div>

@@ -120,3 +120,7 @@ Public demo: https://wat-way.vercel.app
 Mobile rendering removes duplicate facade shells/context buildings and disables dynamic shadows. The renderer uses logarithmic depth for campus-scale geometry. Touch walking has dedicated directional controls and separated playback controls.
 
 Validation: 35 automated checks, including A* optimality, seasonal costs, min-cut response, non-overlapping demo plans, chapter route connectivity, physical traversal, and tunnel wall collisions. Phone layouts inspected at 390×844.
+
+### One-click presentation
+
+Tap **Play full demo** on Maya’s card for a roughly five-minute, 17-scene pitch. It advances through her profile, week, actual algorithm comparisons, first-person MC → MC 4020 classroom navigation, daily stops, and the first-person SCH → AL tunnel. Speaking prompts stay visible. Pause/Resume, Next scene, Restart, and Stop are always available. Walking scenes advance on arrival, pause on a detected obstruction, and can be skipped. Timing pauses while the tab is hidden.
