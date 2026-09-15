@@ -19,14 +19,13 @@ export default function TunnelDemo({
     <section className="tunnel-demo-panel">
       <div className="tunnel-demo-kicker">
         <span />
-        WATERLOO BELOW THE SURFACE
+        WATWAY / NETWORK EXPLORER
       </div>
       <h1>
-        Your campus.
-        <br />A different level.
+        Below the surface.
       </h1>
       <p className="tunnel-demo-intro">
-        A simple hallway → staircase → hallway walkthrough.
+        A wire lattice of Waterloo’s underground connections.
       </p>
       <div className="demo-endpoints">
         <div>
@@ -116,7 +115,7 @@ export default function TunnelDemo({
         ))}
       </div>
       <p className="demo-disclosure">
-        The map shows the campus connection. First-person playback is a simplified straight-line functionality demo.
+        Stylized network view; mesh dimensions are exaggerated for readability. First-person playback is a simplified straight-line demo.
       </p>
     </section>
   );

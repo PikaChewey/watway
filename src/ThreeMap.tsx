@@ -227,7 +227,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         if (!s) return;
         s.target.copy(v(point));
         s.destination.copy(
-          v(point).add(new THREE.Vector3(d * 0.55, d, d * 0.72)),
+          v(point).add(p.current.visualMode === "tunnels" ? new THREE.Vector3(d*.75,d*.55,d*.75) : new THREE.Vector3(d * 0.55, d, d * 0.72)),
         );
         s.transition = 1;
       },
@@ -858,8 +858,8 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
                 : new THREE.Vector3(450, 650, 600),
             );
           if (current.visualMode === "tunnels") {
-            s.target.set(225, -1, 265);
-            s.destination.set(335, 185, 465);
+            s.target.set(205, 2, 315);
+            s.destination.set(345, 105, 455);
           }
           s.transition = 1;
         }
@@ -1229,7 +1229,8 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         construction.visible = false;
         basemaps.group.visible = false;
         sky.visible = false;
-        (scene.background as THREE.Color).set("#10252e");
+        particles.visible = false;
+        (scene.background as THREE.Color).set("#050d19");
       }
       const simpleActive=!!current.simpleWalk && walking;
       straightScene.visible=simpleActive;
@@ -1280,8 +1281,8 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
     const s = state.current;
     if (!s) return;
     if (props.visualMode === "tunnels") {
-      s.target.set(225, -1, 265);
-      s.destination.set(335, 185, 465);
+      s.target.set(205, 2, 315);
+      s.destination.set(345, 105, 455);
       s.transition = 1;
     }
   }, [props.visualMode]);

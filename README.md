@@ -128,3 +128,5 @@ Tap **Play full demo** on Maya’s card for a roughly five-minute, 17-scene pitc
 ### Simplified first-person demo
 
 The first-person presentation now deliberately uses one straight, untextured hallway → staircase → hallway. All faces meet at the same coordinates; the walker remains inside the walls and follows the same step heights as the visible geometry. No automatic camera turns, patterned finishes, campus scenery, or additional floors appear in this scene. It is a functionality illustration, not the literal MC or SCH–AL route; campus route calculations remain in the map/algorithm scenes.
+
+The Tunnels overview uses a stylized cyan/blue triangulated wire lattice, dark perspective grid, and gold featured route. The highlighted lattice includes the connected hallway and stair approaches. Featured and whole-network framing are available.

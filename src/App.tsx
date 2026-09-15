@@ -1006,16 +1006,16 @@ export default function App() {
             <span>WATERLOO UNDERGROUND</span>
             <strong>
               {tunnelFrame === "demo"
-                ? "The arts tunnel, revealed."
+                ? "The underground, in wireframe."
                 : "The underground network."}
             </strong>
-            <small>Cutaway mesh · mapped connections</small>
+            <small>Wire lattice · gold marks the featured path</small>
             <div className="tunnel-frame-switch">
               <button
                 className={tunnelFrame === "demo" ? "active" : ""}
                 onClick={() => {
                   setTunnelFrame("demo");
-                  map.current?.focus([225, -1, 265], 185);
+                  map.current?.focus([205, 2, 315], 185);
                 }}
               >
                 Featured route

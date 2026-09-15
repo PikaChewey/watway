@@ -34,6 +34,7 @@ export function createPhysicalScene() {
     list.push(g);
     buckets.set(key, list);
   };
+  const pitchSurfaces=new Set(pitchRoute.edges.map(e=>e.surfaceId).filter(Boolean));
   const stairSegments = segments.filter(s => s.kind === "stairs");
   for (const s of segments) {
     if (s.building === "DC" && s.floor === 1 && s.kind === "corridor") continue;
@@ -152,82 +153,45 @@ export function createPhysicalScene() {
         add(key + ":light", g);
       }
     }
-    if (s.kind === "tunnel") {
-      const featured = ["AL", "TC", "SCH"].includes(s.building),
-        color = featured ? "#e3c17b" : "#72b7be";
-      const base = quad(
-        point(0, -1, -0.08),
-        point(1, -1, -0.08),
-        point(1, 1, -0.08),
-        point(0, 1, -0.08),
-      );
-      tunnelOverview.add(
-        new THREE.Mesh(
-          base,
-          new THREE.MeshBasicMaterial({
-            color,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: featured ? 0.72 : 0.36,
-            depthWrite: false,
-          }),
-        ),
-      );
-      const sides = mergeGeometries([
-        quad(point(0, -1), point(1, -1), point(1, -1, 2.8), point(0, -1, 2.8)),
-        quad(point(0, 1), point(1, 1), point(1, 1, 2.8), point(0, 1, 2.8)),
-      ]);
-      const wall = new THREE.Mesh(
-        sides,
-        new THREE.MeshBasicMaterial({
-          color,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: featured ? 0.28 : 0.12,
-          depthWrite: false,
-        }),
-      );
-      tunnelOverview.add(wall);
-      const outline = [
-        point(0, -1),
-        point(1, -1),
-        point(1, -1, 2.8),
-        point(0, -1, 2.8),
-        point(0, -1),
-      ];
-      for (const side of [-1, 1]) {
-        const ps = outline.map(
-          (p) =>
-            new THREE.Vector3(
-              p[0] + (side === 1 ? nx * 2 : 0),
-              p[1],
-              p[2] + (side === 1 ? nz * 2 : 0),
-            ),
-        );
-        tunnelOverview.add(
-          new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints(ps),
-            new THREE.LineBasicMaterial({
-              color,
-              transparent: true,
-              opacity: featured ? 0.8 : 0.35,
-            }),
-          ),
-        );
-      }
-      if (featured)
-        for (let d = 4; d < len; d += 9) {
-          const p = point(d / len, 0, 0.15);
-          const dot = new THREE.Mesh(
-            new THREE.SphereGeometry(0.35, 6, 4),
-            new THREE.MeshBasicMaterial({ color: "#ffe3a0" }),
-          );
-          dot.position.set(...p);
-          tunnelOverview.add(dot);
+    if (s.kind === "tunnel" || pitchSurfaces.has(s.id)) {
+      const featured=pitchSurfaces.has(s.id);
+      const wires:number[]=[],frames:number[]=[];
+      const cage=(t:number,side:number,height:number)=>point(t,side*2,height);
+      const wire=(list:number[],a:Point,b:Point)=>list.push(...a,...b);
+      const count=Math.max(1,Math.ceil(len/3));
+      for(let i=0;i<count;i++){
+        const a=i/count,b=(i+1)/count;
+        for(const side of [-1,1]){
+          for(const height of [0,3.1,6.2])wire(wires,cage(a,side,height),cage(b,side,height));
+          wire(wires,cage(a,side,0),cage(b,side,6.2));
+          wire(wires,cage(a,side,6.2),cage(b,side,0));
+          wire(frames,cage(a,side,0),cage(a,side,6.2));
         }
+        for(const height of [0,6.2]){
+          wire(wires,cage(a,-1,height),cage(b,1,height));
+          wire(wires,cage(a,1,height),cage(b,-1,height));
+          wire(frames,cage(a,-1,height),cage(a,1,height));
+        }
+      }
+      for(const side of [-1,1])wire(frames,cage(1,side,0),cage(1,side,6.2));
+      for(const height of [0,6.2])wire(frames,cage(1,-1,height),cage(1,1,height));
+      for(const [coords,opacity,color] of [[wires,featured?.24:.12,featured?"#4dd9ed":"#4283b9"],[frames,featured?.7:.32,featured?"#9bf8ec":"#5b9eb9"]] as [number[],number,string][]){
+        const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(coords,3));
+        tunnelOverview.add(new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending})));
+      }
+      if(featured){
+        const curve=new THREE.LineCurve3(new THREE.Vector3(...point(0,0,3.1)),new THREE.Vector3(...point(1,0,3.1)));
+        tunnelOverview.add(new THREE.Mesh(new THREE.TubeGeometry(curve,1,.12,6,false),new THREE.MeshBasicMaterial({color:"#ffd782"})));
+        tunnelOverview.add(new THREE.Mesh(new THREE.TubeGeometry(curve,1,.55,8,false),new THREE.MeshBasicMaterial({color:"#ffa940",transparent:true,opacity:.12,depthWrite:false,blending:THREE.AdditiveBlending})));
+        for(let d=5;d<len;d+=12){
+          const node=new THREE.Mesh(new THREE.OctahedronGeometry(.7),new THREE.MeshBasicMaterial({color:"#ffdc8f",wireframe:true}));
+          node.position.set(...point(d/len,0,3.1));tunnelOverview.add(node);
+        }
+      }
+
     }
   }
-  const grid = new THREE.GridHelper(1200, 60, "#33525b", "#1c3740");
+  const grid = new THREE.GridHelper(1200, 120, "#284c68", "#132a3b");
   grid.position.set(150, -8, 130);
   (grid.material as THREE.LineBasicMaterial).transparent = true;
   (grid.material as THREE.LineBasicMaterial).opacity = 0.4;
@@ -403,7 +367,7 @@ export function createPhysicalScene() {
       tunnelOverview.visible = tunnelsOnly;
       shell.children.forEach((obj: any) => {
         if (tunnelsOnly) {
-          obj.visible = obj.userData.tunnel && obj.userData.part === "floor";
+          obj.visible = false;
           obj.material.transparent = true;
           obj.material.opacity = 0.25;
           obj.material.depthWrite = false;
