@@ -1178,6 +1178,7 @@ export default forwardRef<MapHandle, Props>(function ThreeMap(props, ref) {
         walking,
         current.visualMode === "tunnels",
         current.route?.nodes.at(-1)?.id,
+        s.walkContext?.kind,
       );
       walkWorld.visible =
         current.indoor || walking || current.visualMode === "tunnels";

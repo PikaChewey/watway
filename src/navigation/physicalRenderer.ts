@@ -391,6 +391,7 @@ export function createPhysicalScene() {
       walking: boolean,
       tunnelsOnly: boolean,
       destination?: string,
+      contextKind?: string,
     ) => {
       tunnelOverview.visible = tunnelsOnly;
       shell.children.forEach((obj: any) => {
@@ -401,7 +402,7 @@ export function createPhysicalScene() {
           obj.material.depthWrite = false;
           return;
         }
-        if(obj.userData.backdrop){obj.visible=walking && obj.userData.building===building;obj.material.transparent=false;obj.material.opacity=1;obj.material.depthWrite=true;return;}
+        if(obj.userData.backdrop){obj.visible=walking && obj.userData.building===building && !["tunnel","bridge","entrance"].includes(contextKind || "");obj.material.transparent=false;obj.material.opacity=1;obj.material.depthWrite=true;return;}
         obj.visible =
           !walking || obj.userData.building === building || obj.userData.tunnel;
         if (walking) {
