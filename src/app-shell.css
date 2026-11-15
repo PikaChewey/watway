@@ -1,0 +1,343 @@
+/* One neutral shell for navigation, search, calendar and campus information. */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #252a28;
+  background: #fafaf8;
+  --bg: #fafaf8;
+  --card: #fff;
+  --card2: #f0f1ec;
+  --line: #e4e6df;
+  --muted: #72776f;
+  --gold: #b39135;
+  --ink: #252a28;
+  --teal: #496654;
+}
+html, body, #root { height: 100%; overflow: hidden; }
+h1, h2, h3 { font-family: inherit; }
+.watway { position: fixed; inset: 0; --panel-width: 364px; --header-height: 64px; --nav-height: 64px; }
+.watway h1 { font-weight: 600; font-size: 25px; letter-spacing: -.8px; }
+.watway h2 { font-weight: 600; }
+.watway label { color: #565e55; }
+.watway input:not([type='range']):not([type='checkbox']), .watway select {
+  color: #2e352e; background: #fff; border-color: #d9ddd4; border-radius: 8px;
+}
+.watway input::placeholder { color: #6e7766; }
+.watway .app-header {
+  height: var(--header-height); padding: 0 24px; gap: 38px;
+  background: #fafaf8; border-bottom: 1px solid var(--line); backdrop-filter: none;
+}
+.watway .brand { gap: 10px; }
+.watway .brand-mark {
+  width: 31px; height: 31px; border: 0; border-radius: 8px; transform: none;
+  color: #f8e9b1; background: #2b372e; font-family: inherit; font-weight: 700; font-size: 23px; line-height: 1;
+}
+.watway .brand-mark i { display: none; }
+.watway .brand > span:last-child { font-family: inherit; font-size: 21px; letter-spacing: -.8px; font-weight: 650; }
+.watway .brand > span:last-child > span { color: #252a28; font-weight: 400; }
+.watway .header-campus { border-left: 1px solid var(--line); padding-left: 26px; font-size: 12px; color: #656e62; gap: 7px; }
+.watway .header-campus .status-dot { display: none; }
+.watway .header-actions { gap: 18px; }
+.watway .header-weather { color: #72776f; font-size: 11px; gap: 6px; }
+.watway .header-weather > svg { color: #6a7564; }
+.watway .header-weather > b { color: #353d32; font-size: 14px; }
+.watway .time-chip { border-color: var(--line); background: transparent; color: #5b6457; padding: 8px 10px; font-size: 11px; border-radius: 7px; }
+.watway .header-info { color: #6e7766; }
+.watway .student-avatar { color: #42583f; background: #e8eddf; border-color: #d8dfce; font-weight: 600; }
+.watway .header-student { order: 5; width: 31px; height: 31px; font-size: 10px; }
+.watway .campus-map { left: var(--panel-width); top: var(--header-height); bottom: 12px; right: 12px; border-radius: 0 0 12px 12px; }
+.watway.panel-hidden .campus-map { left: 12px; }
+.watway .bottom-sheet { top: var(--header-height); bottom: 0; width: var(--panel-width); background: var(--bg); border-right: 1px solid var(--line); box-shadow: none; }
+.watway .desktop-nav { padding: 18px 20px 0; gap: 4px; border-color: var(--line); }
+.watway .desktop-nav > button { gap: 6px; font-size: 11px; color: #6e7766; padding: 6px 0 18px; }
+.watway .desktop-nav > button svg { width: 15px; height: 15px; }
+.watway .desktop-nav > button.active { color: #2b3a2c; }
+.watway .desktop-nav > button.active::after { height: 2px; background: #44563d; left: 6px; right: 6px; }
+.watway .sheet-content { min-height: 0; padding: 28px 24px 24px; scrollbar-color: #cbd0c4 transparent; }
+.watway .desktop-panel-footer { padding: 0 24px; height: 44px; font-size: 10px; color: #6e7766; border-color: var(--line); }
+.watway .desktop-panel-footer button { color: #68715f; }
+.watway .desktop-panel-footer svg { display: none; }
+.watway .panel-toggle { left: calc(var(--panel-width) - 1px); top: calc(var(--header-height) + 15px); width: 20px; height: 30px; background: #fafaf8; border-color: var(--line); color: #6e7766; box-shadow: none; }
+.watway.panel-hidden .panel-toggle { left: 0; }
+.watway .section-head { margin: 28px 0 14px; }
+.watway .section-head h2 { color: #3b4536; font-size: 13px; font-weight: 600; letter-spacing: -.1px; }
+.watway .section-head > button, .watway .section-head > a { font-size: 11px; color: #727b68; }
+.watway .section-head > span { color: #6e7766; font-size: 9px; letter-spacing: .5px; }
+.watway .eyebrow, .watway .section-eyebrow { color: #6e7766; letter-spacing: .8px; }
+.watway .current-origin { color: #6e7766; font-size: 11px; margin: 0 0 13px; gap: 7px; min-height: 24px; }
+.watway .current-origin b { color: #5f6c53; font-weight: 500; }
+.watway .primary { background: #34472f; color: #fff; border-color: #34472f; border-radius: 8px; box-shadow: none; }
+.watway .primary:hover { background: #273b24; }
+.watway .secondary { color: #526347; background: #fff; border: 1px solid #d8dfcf; border-radius: 8px; }
+.watway .round-action { background: transparent; color: #6e7766; border: 1px solid var(--line); border-radius: 8px; width: 34px; height: 34px; }
+.watway .back-link { color: #6d7b62; font-size: 12px; }
+.watway .micro-copy, .watway .building-description { color: #6e7766; font-size: 12px; line-height: 1.65; }
+.watway .quiet-note, .watway .accuracy-note { background: #f0f3eb; border-color: #e2e7d9; color: #6e7766; line-height: 1.6; font-size: 11px; }
+.watway .source-link { color: #667d55; }
+.watway .empty-state { color: #6e7766; }
+.watway .empty-state h3 { color: #526249; }
+/* Compact overview. Secondary tools stay available through disclosure. */
+.overview-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.overview-heading .eyebrow { margin-bottom: 8px; font-size: 11px; letter-spacing: .03em; text-transform: none; }
+.overview-heading h1 { font-size: 26px; letter-spacing: -1px; }
+.next-stop { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.next-stop-top, .next-stop-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); }
+.next-stop-top time { color: inherit; font-variant-numeric: tabular-nums; }
+.next-stop-place { display: flex; gap: 13px; align-items: center; margin: 24px 0; }
+.stop-code { display: grid; place-items: center; width: 48px; height: 52px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 9px; font-size: 19px; font-weight: 650; }
+.next-stop-place h2 { font-size: 18px; font-weight: 650; letter-spacing: -.4px; }
+.next-stop-place p { color: var(--muted); font-size: 12px; margin-top: 5px; }
+.next-stop-meta > span:first-child { display: flex; align-items: center; gap: 5px; }
+.directions-action { width: 100%; display: flex; align-items: center; gap: 9px; margin-top: 20px; padding: 13px 14px; min-height: 46px; border-radius: 8px; background: #34472f; color: #fff; font-size: 13px; font-weight: 550; }
+.directions-action strong { margin-left: auto; font-size: 12px; font-weight: 500; opacity: .8; }
+.place-shortcuts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.place-shortcuts > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 78px; border: 1px solid var(--line); border-radius: 9px; font-size: 11px; color: var(--muted); }
+.place-shortcuts > button:hover { background: var(--card); }
+.campus-link { display: flex; align-items: center; gap: 12px; width: 100%; padding: 20px 0; margin-top: 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; }
+.campus-link > span:nth-child(2) { flex: 1; }
+.campus-link strong, .campus-link small { display: block; }
+.campus-link strong { font-size: 13px; font-weight: 550; }
+.campus-link small { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.campus-link > svg { color: var(--muted); }
+.demo-disclosure { margin-top: 22px; }
+.demo-disclosure > summary { display: flex; align-items: center; gap: 8px; padding: 12px 0; font-size: 12px; color: var(--muted); cursor: pointer; list-style: none; }
+.demo-disclosure > summary::-webkit-details-marker { display: none; }
+.demo-disclosure > summary > span { flex: 1; }
+.demo-disclosure[open] > summary > svg:last-child { transform: rotate(180deg); }
+.demo-tools > button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 12px 0; min-height: 44px; font-size: 12px; text-align: left; border-top: 1px solid var(--line); }
+.demo-tools > button > svg:last-child { margin-left: auto; }
+.detour-link { display: flex; align-items: center; gap: 8px; padding: 12px 0; font-size: 11px; color: var(--muted); width: 100%; text-align: left; }
+.detour-link > svg:last-child { margin-left: auto; }
+.calendar-empty { display: grid; gap: 16px; padding: 24px; border: 1px solid var(--line); border-radius: 12px; }
+.demo-badge { font-size: 10px; padding: 4px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); }
+.campus-label { opacity: .6; margin-left: 6px; }
+.watway .overview-heading .eyebrow { text-transform: none; letter-spacing: .2px; font-size: 11px; }
+.watway .next-stop { box-shadow: 0 2px 4px #29332403; }
+.watway .stop-code { background: #f2f4ed; color: #596c49; border-color: #e6eadf; }
+.watway .place-shortcuts > button { color: #65765a; background: transparent; border-color: #e1e6d8; }
+.watway .place-shortcuts > button:hover { background: #edf1e5; }
+.watway .campus-link .place-icon { width: 36px; height: 36px; border-radius: 9px; background: #edf1e7; color: #6e7766; }
+.watway .student-story { background: #f0f3eb; border-color: #e1e6d7; border-radius: 10px; margin: 5px 0 12px; padding: 13px; }
+.watway .student-story-heading h2 { font-size: 16px; }
+.watway .student-story .eyebrow { font-size: 8px; letter-spacing: .8px; }
+.watway .student-chapters { display: none; }
+.watway .student-scene-select { display: block; width: 65%; background: transparent; border: 0; font-size: 11px; padding: 6px 0; min-height: 36px; }
+.watway .student-scene-footer { gap: 6px; border-color: #dce3d2; }
+.watway .student-scene-footer > span { display: none; }
+.watway .student-scene-footer > button { font-size: 10px; min-height: 36px; padding: 3px 0; }
+.watway .full-demo-launch { border-radius: 6px; font-size: 11px; background: #3a5032; }
+.watway .full-demo-launch > span { font-size: 9px; }
+.watway .student-story > p { color: #6e7766; font-size: 11px; margin: 10px 0; }
+/* Map chrome: search, map style, and opt-in camera tools. */
+.watway .map-search { top: 20px; left: 20px; width: 316px; height: 46px; padding: 0 14px; border: 1px solid #e2e6dc; border-radius: 9px; background: #fffffff5; box-shadow: 0 3px 12px #24312012; color: #6e7766; }
+.watway .map-search input { color: #384731; font-size: 13px; }
+.watway .map-search input::placeholder { color: #6e7766; }
+.watway .search-shortcut { color: #6e7766; border-color: #e0e5d9; }
+.watway .world-mode-switch { top: auto; bottom: 34px; left: 20px; padding: 4px; gap: 2px; border: 1px solid #e0e5d9; border-radius: 8px; background: #fffffff5; box-shadow: 0 3px 12px #24312012; }
+.watway .world-mode-switch > button { padding: 9px 10px; font-size: 11px; border-radius: 5px; color: #6e7766; min-height: 34px; }
+.watway .world-mode-switch > button.active { color: #344b2b; background: #e8eedf; box-shadow: none; }
+.watway .map-tools { top: 20px; right: 20px; gap: 10px; }
+.watway .map-control { width: 38px; height: 38px; border: 1px solid #e2e7da; background: #fffffff5; color: #627752; border-radius: 8px; box-shadow: 0 3px 12px #24312010; }
+.watway .map-control svg { width: 18px; height: 18px; }
+.watway .map-control:hover, .watway .map-control.active { background: #e7eedc; color: #394f2c; }
+.watway .zoom-stack { border-color: #e2e7da; border-radius: 8px; box-shadow: 0 3px 12px #24312010; }
+.watway .zoom-stack .map-control { border: 0; border-radius: 0; }
+.watway .zoom-stack .map-control:first-child { border-bottom: 1px solid #e2e7da; }
+.watway .compass-control { color: #516445; height: 40px; }
+.watway .compass-control > svg { color: #526d42; }
+.watway .map-view-menu { position: absolute; right: 20px; bottom: 34px; z-index: 10; }
+.watway .map-view-menu > summary { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 10px 13px; color: #5c714d; background: #fffffff5; border: 1px solid #e0e5d9; border-radius: 8px; box-shadow: 0 3px 12px #24312012; font-size: 11px; list-style: none; cursor: pointer; }
+.watway .map-view-menu > summary::-webkit-details-marker { display: none; }
+.watway .map-view-menu[open] > summary { background: #e8eedf; }
+.watway .map-view-menu .map-view-actions { position: absolute; right: 0; bottom: 54px; padding: 8px; gap: 7px; flex-direction: column; align-items: stretch; background: #fff; border: 1px solid #e0e5d9; border-radius: 9px; box-shadow: 0 4px 18px #24312016; }
+.watway .camera-switch { background: #f2f5ed; border: 0; border-radius: 6px; box-shadow: none; }
+.watway .camera-switch > button { color: #6e7766; padding: 8px 10px; }
+.watway .camera-switch > button.active { background: #3c5430; color: #fff; box-shadow: none; }
+.watway .indoor-toggle { border: 1px solid #e0e5d9; color: #657b54; background: #fff; padding: 10px; box-shadow: none; justify-content: center; border-radius: 6px; }
+.watway .map-credit { bottom: 10px; left: 20px; font-size: 8px; background: #f8faf1c9; color: #6e7b61; padding: 3px 5px; border-radius: 3px; }
+.watway .map-building-label { background: #fcfdf9f0; color: #4c6240; border: 1px solid #c7d0be88; box-shadow: 0 2px 6px #24312012; border-radius: 5px; padding: 5px 7px; }
+.watway .map-building-label.selected { color: #fff; background: #49653a; border-color: #dbe5d1; }
+.watway .map-building-label.selected .label-name { color: #e0e8d7; }
+.watway .maya-map-pin { background: #fff; border-color: #728860; border-width: 1px; color: #435b34; border-radius: 8px; padding: 6px 9px; min-height: 40px; box-shadow: 0 3px 12px #24312018; }
+.watway .maya-map-pin small { color: #6e7766; }
+.watway .maya-map-pin > i { background: #fff; border-color: #728860; border-width: 1px; }
+.watway .maya-pin-avatar { background: #e8eedf; color: #5c714d; width: 27px; height: 27px; font-size: 9px; }
+.watway .maya-map-pin strong { font-size: 11px; font-weight: 600; }
+.watway .map-popover { top: 20px; right: 70px; background: #fcfdf9; color: #425739; border: 1px solid #dce4d2; border-radius: 12px; box-shadow: 0 8px 30px #26351b24; }
+.watway .popover-title h3 { color: #425739; }
+.watway .popover-title > button { color: #6e7766; }
+.watway .toggle-row { color: #6e7766; border-color: #e4eadb; }
+.watway .setting-row { color: #6e7766; }
+.watway .toggle-row > i { background: #d9e1cf; }
+.watway .toggle-row input:checked + i { background: #637d4f; }
+.watway .reset-map { margin-top: 12px; width: 100%; }
+.watway .weather-display strong, .watway .weather-display > svg { color: #5d744d; }
+.watway .weather-display > span, .watway .weather-numbers, .watway .hourly-weather { color: #6e7766; }
+.watway .weather-display small, .watway .hourly-weather small { color: #6e7766; }
+.watway .weather-presets > button { color: #6e7766; border-color: #dde5d3; }
+.watway .weather-presets > button.active { background: #e4ecda; border-color: #bbcba8; color: #4e6b39; }
+.watway .time-scrubber { left: 20px; bottom: 92px; background: #fcfdf9; color: #627952; border-color: #dce4d2; border-radius: 10px; }
+.watway .time-scrubber button, .watway .time-scrubber p, .watway .time-marks { color: #6e7766; }
+.watway .floor-picker { background: #fffffff5; border-color: #dde5d3; color: #6e7766; }
+.watway .floor-picker button.active { background: #526e40; color: #fff; }
+/* Consistent rows and quiet detail views across the rest of the app. */
+.watway .place-icon { background: #ecf1e4; color: #6e7766; border-radius: 8px; }
+.watway .search-result, .watway .building-list-row, .watway .place-row, .watway .opportunity, .watway .agenda-item, .watway .event-card { border-color: #e4e9dc; }
+.watway .search-result strong, .watway .building-list-row strong, .watway .place-row strong, .watway .opportunity strong, .watway .agenda-item strong, .watway .event-card h3 { color: #485c3b; font-size: 12px; }
+.watway .search-result small, .watway .building-list-row small, .watway .place-row small, .watway .opportunity small, .watway .agenda-item span, .watway .event-card p { color: #6e7766; font-size: 11px; line-height: 1.5; }
+.watway .search-result:hover, .watway .building-list-row:hover { background: #f0f4e8; }
+.watway .building-list-row > span { background: #edf2e4; border-color: #dfe7d4; color: #6e7766; border-radius: 8px; }
+.watway .building-code { background: #edf2e4; border-color: #dfe7d4; color: #6e7766; }
+.watway .building-detail-head button { color: #6e7766; background: #f1f5ea; border-color: #e0e8d5; }
+.watway .building-meta, .watway .building-description { color: #6e7766; }
+.watway .indoor-card { background: #edf3e4; border-color: #dfe8d2; color: #607e46; border-radius: 9px; }
+.watway .indoor-card small, .watway .reference-links a { color: #6e7766; }
+.watway .explore-categories { gap: 6px; }
+.watway .explore-categories > button { background: transparent; color: #6e7766; border: 1px solid #dfe7d4; border-radius: 7px; font-size: 10px; min-height: 61px; }
+.watway .explore-categories > button.active { background: #e7eedb; color: #566f42; border-color: #bfcfac; }
+.watway .saved-place { color: #6e7766; border-color: #e0e8d5; }
+.watway .route-locations { background: #f0f4e8; border-color: #dfe8d3; border-radius: 9px; }
+.watway .route-locations input { background: #fff; color: #60774d; }
+.watway .route-stops, .watway .route-locations > button { color: #6e7766; }
+.watway .preference-chips > button { color: #6e7766; border-color: #dce6ce; background: transparent; border-radius: 6px; }
+.watway .preference-chips > button.active { color: #556e40; background: #e5eed8; border-color: #bed1a6; }
+.watway .route-hero { border-color: #e1e9d7; }
+.watway .route-hero > strong { color: #516e3c; }
+.watway .route-hero b { color: #6e7766; }
+.watway .route-hero span, .watway .route-hero small, .watway .route-facts { color: #6e7766; }
+.watway .route-quality { background: #edf3e3; border-color: #dce8cc; }
+.watway .route-context { color: #6e7766; font-size: 11px; }
+.route-preference { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 8px; font-size: 11px; }
+.watway .route-preference select { min-height: 38px; max-width: 170px; padding: 8px 10px; font-size: 12px; }
+.watway .directions-list li { border-color: #e2ead7; }
+.watway .directions-list strong { color: #5f7b48; }
+.watway .directions-list small, .watway .directions-list em { color: #6e7766; }
+.watway .step-icon { background: #edf3e3; color: #6e7766; }
+.watway .directions-list .arrival { color: #617e48; }
+.watway .event-date { background: #eef4e4; border-color: #dce8ce; color: #6e7766; }
+.watway .event-source, .watway .event-source small { color: #6e7766; }
+.watway .event-source > span { border-color: #d6e3c7; }
+.watway .event-actions button, .watway .event-actions a, .watway .inline-route { color: #6e7766; }
+.watway .facility-card, .watway .flow-card { background: #f4f7ee; border-color: #dce7d0; border-radius: 9px; color: #6e7766; }
+.watway .facility-card strong, .watway .flow-card strong { color: #627f49; }
+.watway .facility-card small, .watway .facility-card p, .watway .flow-card p, .watway .flow-card small { color: #6e7766; }
+.watway .facility-card > div > b { color: #556c43; font-size: 22px; }
+.watway .facility-card footer { color: #6e7766; border-color: #dfe7d5; font-size: 9px; }
+.watway .facility-symbol { background: #e4ecd9; color: #6a8154; }
+.watway .occupancy-track { background: #dfe7d7; }
+.watway .feed-freshness, .watway .feed-mode-toggle { color: #6e7766; }
+.watway .feed-freshness b { color: #6e7766; background: #edf4e3; border-color: #d7e6c7; }
+.watway .week-selector button { color: #6e7766; background: transparent; border: 1px solid #e1ead7; }
+.watway .week-selector button.selected { background: #577343; color: #fff; border-color: #577343; }
+.watway .week-selector button b { color: inherit; }
+.watway .student-agenda.is-past { opacity: .8; }
+.watway .agenda-item > div:last-child > span { color: #6e7766; }
+.watway .agenda-time { color: #6e7766; }
+.watway .agenda-time small { color: #6e7766; }
+.watway .event-import, .watway .calendar-connection, .watway .optional-calendar { background: #f3f7ec; border-color: #dfe9d3; color: #6e7766; border-radius: 9px; }
+.watway .event-import p, .watway .optional-calendar p, .watway .calendar-connection p { color: #6e7766; }
+.watway .student-profile { color: #415d31; background: #fafcf7; }
+.watway .student-profile h2 { color: #5f7b49; }
+.watway .toast { background: #fff; color: #627d4a; border: 1px solid #dce8d0; box-shadow: 0 5px 24px #26351b21; }
+.watway .about-modal { background: #fcfdf9; color: #556f41; border-color: #dae5cd; }
+.watway .about-modal p, .watway .about-modal li { color: #6e7766; }
+/* Tunnel and presentation scenes keep their purpose-specific contrast. */
+.watway.visual-tunnels .bottom-sheet { background: #fafaf8; border-color: var(--line); }
+.watway.visual-tunnels .tunnel-demo-panel h1 { color: #2f4329; }
+.watway.visual-tunnels .tunnel-demo-kicker, .watway.visual-tunnels .tunnel-demo-intro, .watway.visual-tunnels .demo-metrics, .watway.visual-tunnels .demo-collision { color: #6e7766; }
+.watway.visual-tunnels .demo-endpoints { border-color: #dce7d0; }
+.watway.visual-tunnels .demo-endpoints > div > span { color: #6e7766; }
+.watway.visual-tunnels .demo-endpoints small { color: #6e7766; }
+.watway.visual-tunnels .demo-play { background: #3c572e; color: #fff; border-radius: 9px; }
+.watway.visual-tunnels .demo-manual { border-color: #d4e3c6; color: #6e7766; }
+.watway.visual-tunnels .tunnel-map-title { top: 22px; left: 22px; }
+.watway.visual-tunnels .world-mode-switch { top: auto; bottom: 34px; }
+.watway.visual-tunnels .map-search, .watway.visual-tunnels .map-view-menu { display: none; }
+.watway.visual-tunnels .map-building-label { background: #0d2331e8; border-color: #4a839b66; color: #a7dfe6; }
+.watway.walking .map-search, .watway.walking .map-tools, .watway.walking .map-view-menu, .watway.walking .world-mode-switch { display: none; }
+.watway.walking .walking-hud, .watway.walking .playback, .watway.walking .touch-move { color: #f6faf0; }
+@media (min-width: 1500px) { .watway { --panel-width: 384px; } .watway .sheet-content { padding: 32px 28px; } }
+@media (max-width: 1100px) and (min-width: 760px) { .watway { --panel-width: 340px; } .watway .sheet-content { padding: 26px 20px; } .watway .map-view-menu > summary span { display: none; } }
+@media (max-width: 759px) {
+  .watway { --header-height: calc(56px + env(safe-area-inset-top, 0px)); --nav-height: calc(58px + env(safe-area-inset-bottom, 0px)); --panel-height: 42dvh; --panel-width: 100%; }
+  .watway.sheet-full { --panel-height: calc(100dvh - var(--header-height) - var(--nav-height) - 68px); }
+  .watway.sheet-peek { --panel-height: 48px; }
+  .watway.place-detail.sheet-half, .watway.directions-open.sheet-half { --panel-height: 54dvh; }
+  .watway .app-header { padding: env(safe-area-inset-top, 0px) 16px 0; gap: 8px; }
+  .watway .brand > span:last-child { font-size: 19px; }
+  .watway .brand-mark { width: 27px; height: 27px; font-size: 20px; }
+  .watway .header-campus, .watway .header-info, .watway .header-weather > span, .watway .header-weather > svg { display: none; }
+  .watway .header-actions { gap: 10px; }
+  .watway .header-student { width: 28px; height: 28px; }
+  .watway .demo-badge { font-size: 9px; padding: 3px 5px; }
+  .watway .time-chip { padding: 6px 7px; gap: 4px; font-size: 10px; border: 0; }
+  .watway .time-chip > svg:first-child { display: none; }
+  .watway .campus-map, .watway.panel-hidden .campus-map { top: var(--header-height); left: 0; right: 0; bottom: var(--nav-height); border-radius: 0; }
+  .watway .bottom-sheet { top: auto; bottom: var(--nav-height); height: var(--panel-height); border: 1px solid #dfe7d4; border-bottom: 0; border-radius: 16px 16px 0 0; box-shadow: 0 -3px 16px #25331b0a; }
+  .watway .sheet-handle { display: flex; height: 28px; min-height: 28px; padding: 0; color: #6e7766; }
+  .watway .sheet-handle i { width: 31px; height: 4px; background: #d0dbc4; }
+  .watway .sheet-handle > span, .watway .sheet-handle > svg { display: none; }
+  .watway.sheet-peek .sheet-handle { height: 48px; min-height: 48px; padding: 0 16px; gap: 8px; }
+  .watway.sheet-peek .sheet-handle i { display: none; }
+  .watway.sheet-peek .sheet-handle > span { display: block; color: #6e7766; font-size: 12px; }
+  .watway.sheet-peek .sheet-handle > svg { display: block; margin-left: auto; }
+  .watway .sheet-content { padding: 4px 20px 24px; }
+  .watway .desktop-nav, .watway .desktop-panel-footer { display: none; }
+  .watway .mobile-nav { background: #fafbf7; border-top: 1px solid #e0e8d5; height: var(--nav-height); padding: 0 10px env(safe-area-inset-bottom, 0px); }
+  .watway .mobile-nav > button { color: #6e7766; font-size: 10px; min-height: 56px; gap: 5px; }
+  .watway .mobile-nav > button > svg { width: 19px; height: 19px; }
+  .watway .mobile-nav > button.active { color: #4a6935; }
+  .watway .mobile-nav > button.active::before { display: none; }
+  .watway .overview-heading { display: flex; margin: 0 0 14px; }
+  .watway .overview-heading .eyebrow { font-size: 10px; margin-bottom: 5px; }
+  .watway .overview-heading h1 { font-size: 22px; }
+  .watway .overview-heading .round-action { width: 32px; height: 32px; }
+  .watway .current-origin { font-size: 10px; min-height: 20px; margin: 0 0 9px; }
+  .watway .next-stop { padding: 14px; border-radius: 10px; }
+  .watway .next-stop-top, .watway .next-stop-meta { font-size: 11px; }
+  .watway .next-stop-place { margin: 14px 0; gap: 12px; }
+  .watway .next-stop-place h2 { font-size: 17px; }
+  .watway .next-stop-place p { font-size: 11px; }
+  .watway .stop-code { width: 42px; height: 44px; font-size: 17px; }
+  .watway .directions-action { margin-top: 14px; min-height: 44px; padding: 11px 12px; }
+  .watway .map-search { display: flex; top: 14px; left: 16px; right: 16px; width: auto; max-width: none; height: 44px; }
+  .watway .map-tools { top: 72px; right: 16px; gap: 8px; }
+  .watway .map-tools .compass-control, .watway .map-tools .zoom-stack { display: none; }
+  .watway .map-tools > .map-control { display: grid; width: 36px; height: 36px; }
+  .watway .world-mode-switch { top: 72px; left: 16px; bottom: auto; padding: 3px; min-height: 36px; }
+  .watway .world-mode-switch > button { min-height: 30px; padding: 6px 9px; font-size: 10px; }
+  .watway .world-mode-switch > button:nth-child(2), .watway .world-mode-switch > button:nth-child(3) { display: none; }
+  .watway .map-view-menu { bottom: calc(var(--panel-height) + 14px); right: 16px; }
+  .watway .map-view-menu > summary { padding: 8px 10px; min-height: 38px; font-size: 10px; }
+  .watway .map-view-menu .map-view-actions { display: flex; bottom: 48px; }
+  .watway .map-credit { display: none; }
+  .watway .map-popover { top: 72px; left: 16px; right: 64px; max-width: 320px; width: auto; max-height: calc(100dvh - var(--header-height) - 90px); overflow: auto; z-index: 24; }
+  .watway:has(.map-popover) .bottom-sheet { z-index: 7; }
+  .watway .time-scrubber { left: 16px; right: 16px; bottom: calc(var(--panel-height) + 14px); width: auto; z-index: 24; }
+  .watway .student-story { padding: 13px; }
+  .watway.visual-tunnels.sheet-half { --panel-height: 38dvh; }
+  .watway.visual-tunnels .world-mode-switch { top: 14px; bottom: auto; }
+  .watway.visual-tunnels .tunnel-map-title { top: 70px; left: 16px; }
+  .watway.visual-tunnels .tunnel-map-title small { display: none; }
+  .watway.visual-tunnels .map-tools { top: 14px; }
+  .watway.walking .touch-move { bottom: calc(var(--panel-height) + 16px); }
+  .watway.walking .playback { bottom: calc(var(--panel-height) + 132px); }
+  .watway.presenting { --nav-height: calc(133px + env(safe-area-inset-bottom, 0px)); --panel-height: 47dvh; }
+  .watway.presenting .mobile-nav { display: none; }
+  .watway.presenting.sheet-peek { --panel-height: 48px; }
+}
+@media (max-width: 370px) {
+  .watway .header-actions { gap: 6px; }
+  .watway .header-weather { display: none; }
+  .watway .sheet-content { padding-left: 16px; padding-right: 16px; }
+}
+@media (max-width: 759px) and (max-height: 740px) {
+  .watway.sheet-half { --panel-height: 50dvh; }
+  .watway .overview-heading { margin-bottom: 10px; }
+  .watway .overview-heading .eyebrow { display: none; }
+  .watway .overview-heading h1 { font-size: 20px; }
+  .watway .map-view-menu > summary > span { display: none; }
+}
+/* Plain mount fade inspired by React Bits Fade Content. */
+.fade-content { animation: content-appear 180ms ease-out; }
+@keyframes content-appear { from { opacity: .6; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fade-content { animation: none; } }
