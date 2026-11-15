@@ -12,6 +12,7 @@
   --ink: #252a28;
   --teal: #496654;
 }
+html, body, #root { height: 100%; overflow: hidden; }
 h1, h2, h3 { font-family: inherit; }
 .watway { --panel-width: 364px; --header-height: 64px; --nav-height: 64px; }
 .watway h1 { font-weight: 600; font-size: 25px; letter-spacing: -.8px; }
@@ -20,7 +21,7 @@ h1, h2, h3 { font-family: inherit; }
 .watway input:not([type='range']):not([type='checkbox']), .watway select {
   color: #2e352e; background: #fff; border-color: #d9ddd4; border-radius: 8px;
 }
-.watway input::placeholder { color: #90958b; }
+.watway input::placeholder { color: #6e7766; }
 .watway .app-header {
   height: var(--header-height); padding: 0 24px; gap: 38px;
   background: #fafaf8; border-bottom: 1px solid var(--line); backdrop-filter: none;
@@ -28,7 +29,7 @@ h1, h2, h3 { font-family: inherit; }
 .watway .brand { gap: 10px; }
 .watway .brand-mark {
   width: 31px; height: 31px; border: 0; border-radius: 8px; transform: none;
-  color: #f8e9b1; background: #2b372e; font: 700 23px/1 inherit;
+  color: #f8e9b1; background: #2b372e; font-family: inherit; font-weight: 700; font-size: 23px; line-height: 1;
 }
 .watway .brand-mark i { display: none; }
 .watway .brand > span:last-child { font-family: inherit; font-size: 21px; letter-spacing: -.8px; font-weight: 650; }
@@ -40,19 +41,19 @@ h1, h2, h3 { font-family: inherit; }
 .watway .header-weather > svg { color: #6a7564; }
 .watway .header-weather > b { color: #353d32; font-size: 14px; }
 .watway .time-chip { border-color: var(--line); background: transparent; color: #5b6457; padding: 8px 10px; font-size: 11px; border-radius: 7px; }
-.watway .header-info { color: #737c6c; }
+.watway .header-info { color: #6e7766; }
 .watway .student-avatar { color: #42583f; background: #e8eddf; border-color: #d8dfce; font-weight: 600; }
 .watway .header-student { order: 5; width: 31px; height: 31px; font-size: 10px; }
 .watway .campus-map { left: var(--panel-width); top: var(--header-height); bottom: 12px; right: 12px; border-radius: 0 0 12px 12px; }
 .watway.panel-hidden .campus-map { left: 12px; }
 .watway .bottom-sheet { top: var(--header-height); bottom: 0; width: var(--panel-width); background: var(--bg); border-right: 1px solid var(--line); box-shadow: none; }
 .watway .desktop-nav { padding: 18px 20px 0; gap: 4px; border-color: var(--line); }
-.watway .desktop-nav > button { gap: 6px; font-size: 11px; color: #7b8176; padding: 6px 0 18px; }
+.watway .desktop-nav > button { gap: 6px; font-size: 11px; color: #6e7766; padding: 6px 0 18px; }
 .watway .desktop-nav > button svg { width: 15px; height: 15px; }
 .watway .desktop-nav > button.active { color: #2b3a2c; }
 .watway .desktop-nav > button.active::after { height: 2px; background: #44563d; left: 6px; right: 6px; }
-.watway .sheet-content { padding: 28px 24px 24px; scrollbar-color: #cbd0c4 transparent; }
-.watway .desktop-panel-footer { padding: 0 24px; height: 44px; font-size: 10px; color: #858a7f; border-color: var(--line); }
+.watway .sheet-content { min-height: 0; padding: 28px 24px 24px; scrollbar-color: #cbd0c4 transparent; }
+.watway .desktop-panel-footer { padding: 0 24px; height: 44px; font-size: 10px; color: #6e7766; border-color: var(--line); }
 .watway .desktop-panel-footer button { color: #68715f; }
 .watway .desktop-panel-footer svg { display: none; }
 .watway .panel-toggle { left: calc(var(--panel-width) - 1px); top: calc(var(--header-height) + 15px); width: 20px; height: 30px; background: #fafaf8; border-color: var(--line); color: #6e7766; box-shadow: none; }
@@ -60,19 +61,19 @@ h1, h2, h3 { font-family: inherit; }
 .watway .section-head { margin: 28px 0 14px; }
 .watway .section-head h2 { color: #3b4536; font-size: 13px; font-weight: 600; letter-spacing: -.1px; }
 .watway .section-head > button, .watway .section-head > a { font-size: 11px; color: #727b68; }
-.watway .section-head > span { color: #919786; font-size: 9px; letter-spacing: .5px; }
-.watway .eyebrow, .watway .section-eyebrow { color: #828a79; letter-spacing: .8px; }
-.watway .current-origin { color: #838b79; font-size: 11px; margin: 0 0 13px; gap: 7px; min-height: 24px; }
+.watway .section-head > span { color: #6e7766; font-size: 9px; letter-spacing: .5px; }
+.watway .eyebrow, .watway .section-eyebrow { color: #6e7766; letter-spacing: .8px; }
+.watway .current-origin { color: #6e7766; font-size: 11px; margin: 0 0 13px; gap: 7px; min-height: 24px; }
 .watway .current-origin b { color: #5f6c53; font-weight: 500; }
 .watway .primary { background: #34472f; color: #fff; border-color: #34472f; border-radius: 8px; box-shadow: none; }
 .watway .primary:hover { background: #273b24; }
 .watway .secondary { color: #526347; background: #fff; border: 1px solid #d8dfcf; border-radius: 8px; }
-.watway .round-action { background: transparent; color: #7e8875; border: 1px solid var(--line); border-radius: 8px; width: 34px; height: 34px; }
+.watway .round-action { background: transparent; color: #6e7766; border: 1px solid var(--line); border-radius: 8px; width: 34px; height: 34px; }
 .watway .back-link { color: #6d7b62; font-size: 12px; }
-.watway .micro-copy, .watway .building-description { color: #7a8470; font-size: 12px; line-height: 1.65; }
-.watway .quiet-note, .watway .accuracy-note { background: #f0f3eb; border-color: #e2e7d9; color: #77846c; line-height: 1.6; font-size: 11px; }
+.watway .micro-copy, .watway .building-description { color: #6e7766; font-size: 12px; line-height: 1.65; }
+.watway .quiet-note, .watway .accuracy-note { background: #f0f3eb; border-color: #e2e7d9; color: #6e7766; line-height: 1.6; font-size: 11px; }
 .watway .source-link { color: #667d55; }
-.watway .empty-state { color: #8a947e; }
+.watway .empty-state { color: #6e7766; }
 .watway .empty-state h3 { color: #526249; }
 /* Compact overview. Secondary tools stay available through disclosure. */
 .overview-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
@@ -114,7 +115,7 @@ h1, h2, h3 { font-family: inherit; }
 .watway .stop-code { background: #f2f4ed; color: #596c49; border-color: #e6eadf; }
 .watway .place-shortcuts > button { color: #65765a; background: transparent; border-color: #e1e6d8; }
 .watway .place-shortcuts > button:hover { background: #edf1e5; }
-.watway .campus-link .place-icon { width: 36px; height: 36px; border-radius: 9px; background: #edf1e7; color: #718360; }
+.watway .campus-link .place-icon { width: 36px; height: 36px; border-radius: 9px; background: #edf1e7; color: #6e7766; }
 .watway .student-story { background: #f0f3eb; border-color: #e1e6d7; border-radius: 10px; margin: 5px 0 12px; padding: 13px; }
 .watway .student-story-heading h2 { font-size: 16px; }
 .watway .student-story .eyebrow { font-size: 8px; letter-spacing: .8px; }
@@ -125,14 +126,14 @@ h1, h2, h3 { font-family: inherit; }
 .watway .student-scene-footer > button { font-size: 10px; min-height: 36px; padding: 3px 0; }
 .watway .full-demo-launch { border-radius: 6px; font-size: 11px; background: #3a5032; }
 .watway .full-demo-launch > span { font-size: 9px; }
-.watway .student-story > p { color: #6d7e61; font-size: 11px; margin: 10px 0; }
+.watway .student-story > p { color: #6e7766; font-size: 11px; margin: 10px 0; }
 /* Map chrome: search, map style, and opt-in camera tools. */
-.watway .map-search { top: 20px; left: 20px; width: 316px; height: 46px; padding: 0 14px; border: 1px solid #e2e6dc; border-radius: 9px; background: #fffffff5; box-shadow: 0 3px 12px #24312012; color: #7c8970; }
+.watway .map-search { top: 20px; left: 20px; width: 316px; height: 46px; padding: 0 14px; border: 1px solid #e2e6dc; border-radius: 9px; background: #fffffff5; box-shadow: 0 3px 12px #24312012; color: #6e7766; }
 .watway .map-search input { color: #384731; font-size: 13px; }
-.watway .map-search input::placeholder { color: #8c967f; }
-.watway .search-shortcut { color: #929b85; border-color: #e0e5d9; }
+.watway .map-search input::placeholder { color: #6e7766; }
+.watway .search-shortcut { color: #6e7766; border-color: #e0e5d9; }
 .watway .world-mode-switch { top: auto; bottom: 34px; left: 20px; padding: 4px; gap: 2px; border: 1px solid #e0e5d9; border-radius: 8px; background: #fffffff5; box-shadow: 0 3px 12px #24312012; }
-.watway .world-mode-switch > button { padding: 9px 10px; font-size: 11px; border-radius: 5px; color: #78866a; min-height: 34px; }
+.watway .world-mode-switch > button { padding: 9px 10px; font-size: 11px; border-radius: 5px; color: #6e7766; min-height: 34px; }
 .watway .world-mode-switch > button.active { color: #344b2b; background: #e8eedf; box-shadow: none; }
 .watway .map-tools { top: 20px; right: 20px; gap: 10px; }
 .watway .map-control { width: 38px; height: 38px; border: 1px solid #e2e7da; background: #fffffff5; color: #627752; border-radius: 8px; box-shadow: 0 3px 12px #24312010; }
@@ -149,7 +150,7 @@ h1, h2, h3 { font-family: inherit; }
 .watway .map-view-menu[open] > summary { background: #e8eedf; }
 .watway .map-view-menu .map-view-actions { position: absolute; right: 0; bottom: 54px; padding: 8px; gap: 7px; flex-direction: column; align-items: stretch; background: #fff; border: 1px solid #e0e5d9; border-radius: 9px; box-shadow: 0 4px 18px #24312016; }
 .watway .camera-switch { background: #f2f5ed; border: 0; border-radius: 6px; box-shadow: none; }
-.watway .camera-switch > button { color: #718461; padding: 8px 10px; }
+.watway .camera-switch > button { color: #6e7766; padding: 8px 10px; }
 .watway .camera-switch > button.active { background: #3c5430; color: #fff; box-shadow: none; }
 .watway .indoor-toggle { border: 1px solid #e0e5d9; color: #657b54; background: #fff; padding: 10px; box-shadow: none; justify-content: center; border-radius: 6px; }
 .watway .map-credit { bottom: 10px; left: 20px; font-size: 8px; background: #f8faf1c9; color: #6e7b61; padding: 3px 5px; border-radius: 3px; }
@@ -157,87 +158,96 @@ h1, h2, h3 { font-family: inherit; }
 .watway .map-building-label.selected { color: #fff; background: #49653a; border-color: #dbe5d1; }
 .watway .map-building-label.selected .label-name { color: #e0e8d7; }
 .watway .maya-map-pin { background: #fff; border-color: #728860; border-width: 1px; color: #435b34; border-radius: 8px; padding: 6px 9px; min-height: 40px; box-shadow: 0 3px 12px #24312018; }
-.watway .maya-map-pin small { color: #8d9c7b; }
+.watway .maya-map-pin small { color: #6e7766; }
 .watway .maya-map-pin > i { background: #fff; border-color: #728860; border-width: 1px; }
 .watway .maya-pin-avatar { background: #e8eedf; color: #5c714d; width: 27px; height: 27px; font-size: 9px; }
 .watway .maya-map-pin strong { font-size: 11px; font-weight: 600; }
 .watway .map-popover { top: 20px; right: 70px; background: #fcfdf9; color: #425739; border: 1px solid #dce4d2; border-radius: 12px; box-shadow: 0 8px 30px #26351b24; }
 .watway .popover-title h3 { color: #425739; }
-.watway .toggle-row { color: #718363; border-color: #e4eadb; }
-.watway .setting-row { color: #718363; }
+.watway .toggle-row { color: #6e7766; border-color: #e4eadb; }
+.watway .setting-row { color: #6e7766; }
 .watway .toggle-row > i { background: #d9e1cf; }
 .watway .toggle-row input:checked + i { background: #637d4f; }
 .watway .reset-map { margin-top: 12px; width: 100%; }
 .watway .weather-display strong, .watway .weather-display > svg { color: #5d744d; }
-.watway .weather-display > span, .watway .weather-numbers, .watway .hourly-weather { color: #7b8c6c; }
-.watway .weather-display small, .watway .hourly-weather small { color: #96a18b; }
-.watway .weather-presets > button { color: #718363; border-color: #dde5d3; }
+.watway .weather-display > span, .watway .weather-numbers, .watway .hourly-weather { color: #6e7766; }
+.watway .weather-display small, .watway .hourly-weather small { color: #6e7766; }
+.watway .weather-presets > button { color: #6e7766; border-color: #dde5d3; }
 .watway .weather-presets > button.active { background: #e4ecda; border-color: #bbcba8; color: #4e6b39; }
 .watway .time-scrubber { left: 20px; bottom: 92px; background: #fcfdf9; color: #627952; border-color: #dce4d2; border-radius: 10px; }
-.watway .time-scrubber button, .watway .time-scrubber p, .watway .time-marks { color: #8d9c7c; }
-.watway .floor-picker { background: #fffffff5; border-color: #dde5d3; color: #7e906c; }
+.watway .time-scrubber button, .watway .time-scrubber p, .watway .time-marks { color: #6e7766; }
+.watway .floor-picker { background: #fffffff5; border-color: #dde5d3; color: #6e7766; }
 .watway .floor-picker button.active { background: #526e40; color: #fff; }
 /* Consistent rows and quiet detail views across the rest of the app. */
-.watway .place-icon { background: #ecf1e4; color: #70865b; border-radius: 8px; }
+.watway .place-icon { background: #ecf1e4; color: #6e7766; border-radius: 8px; }
 .watway .search-result, .watway .building-list-row, .watway .place-row, .watway .opportunity, .watway .agenda-item, .watway .event-card { border-color: #e4e9dc; }
 .watway .search-result strong, .watway .building-list-row strong, .watway .place-row strong, .watway .opportunity strong, .watway .agenda-item strong, .watway .event-card h3 { color: #485c3b; font-size: 12px; }
-.watway .search-result small, .watway .building-list-row small, .watway .place-row small, .watway .opportunity small, .watway .agenda-item span, .watway .event-card p { color: #8a9a78; font-size: 11px; line-height: 1.5; }
+.watway .search-result small, .watway .building-list-row small, .watway .place-row small, .watway .opportunity small, .watway .agenda-item span, .watway .event-card p { color: #6e7766; font-size: 11px; line-height: 1.5; }
 .watway .search-result:hover, .watway .building-list-row:hover { background: #f0f4e8; }
-.watway .building-list-row > span { background: #edf2e4; border-color: #dfe7d4; color: #70875a; border-radius: 8px; }
-.watway .building-code { background: #edf2e4; border-color: #dfe7d4; color: #70875a; }
-.watway .building-detail-head button { color: #93a181; background: #f1f5ea; border-color: #e0e8d5; }
-.watway .building-meta, .watway .building-description { color: #8c9c7a; }
+.watway .building-list-row > span { background: #edf2e4; border-color: #dfe7d4; color: #6e7766; border-radius: 8px; }
+.watway .building-code { background: #edf2e4; border-color: #dfe7d4; color: #6e7766; }
+.watway .building-detail-head button { color: #6e7766; background: #f1f5ea; border-color: #e0e8d5; }
+.watway .building-meta, .watway .building-description { color: #6e7766; }
 .watway .indoor-card { background: #edf3e4; border-color: #dfe8d2; color: #607e46; border-radius: 9px; }
-.watway .indoor-card small, .watway .reference-links a { color: #91a17e; }
+.watway .indoor-card small, .watway .reference-links a { color: #6e7766; }
 .watway .explore-categories { gap: 6px; }
-.watway .explore-categories > button { background: transparent; color: #83976d; border: 1px solid #dfe7d4; border-radius: 7px; font-size: 10px; min-height: 61px; }
+.watway .explore-categories > button { background: transparent; color: #6e7766; border: 1px solid #dfe7d4; border-radius: 7px; font-size: 10px; min-height: 61px; }
 .watway .explore-categories > button.active { background: #e7eedb; color: #566f42; border-color: #bfcfac; }
-.watway .saved-place { color: #71865d; border-color: #e0e8d5; }
+.watway .saved-place { color: #6e7766; border-color: #e0e8d5; }
 .watway .route-locations { background: #f0f4e8; border-color: #dfe8d3; border-radius: 9px; }
 .watway .route-locations input { background: #fff; color: #60774d; }
-.watway .route-stops, .watway .route-locations > button { color: #90a07b; }
-.watway .preference-chips > button { color: #889c72; border-color: #dce6ce; background: transparent; border-radius: 6px; }
+.watway .route-stops, .watway .route-locations > button { color: #6e7766; }
+.watway .preference-chips > button { color: #6e7766; border-color: #dce6ce; background: transparent; border-radius: 6px; }
 .watway .preference-chips > button.active { color: #556e40; background: #e5eed8; border-color: #bed1a6; }
 .watway .route-hero { border-color: #e1e9d7; }
 .watway .route-hero > strong { color: #516e3c; }
-.watway .route-hero b { color: #728b5b; }
-.watway .route-hero span, .watway .route-hero small, .watway .route-facts { color: #94a67f; }
+.watway .route-hero b { color: #6e7766; }
+.watway .route-hero span, .watway .route-hero small, .watway .route-facts { color: #6e7766; }
 .watway .route-quality { background: #edf3e3; border-color: #dce8cc; }
-.watway .route-context { color: #8b9f75; font-size: 11px; }
+.watway .route-context { color: #6e7766; font-size: 11px; }
+.route-preference { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 8px; font-size: 11px; }
+.watway .route-preference select { min-height: 38px; max-width: 170px; padding: 8px 10px; font-size: 12px; }
 .watway .directions-list li { border-color: #e2ead7; }
 .watway .directions-list strong { color: #5f7b48; }
-.watway .directions-list small, .watway .directions-list em { color: #95a781; }
-.watway .step-icon { background: #edf3e3; color: #89a06d; }
+.watway .directions-list small, .watway .directions-list em { color: #6e7766; }
+.watway .step-icon { background: #edf3e3; color: #6e7766; }
 .watway .directions-list .arrival { color: #617e48; }
-.watway .event-date { background: #eef4e4; border-color: #dce8ce; color: #88a16b; }
-.watway .event-source, .watway .event-source small { color: #91a77c; }
+.watway .event-date { background: #eef4e4; border-color: #dce8ce; color: #6e7766; }
+.watway .event-source, .watway .event-source small { color: #6e7766; }
 .watway .event-source > span { border-color: #d6e3c7; }
-.watway .event-actions button, .watway .event-actions a, .watway .inline-route { color: #7b9762; }
-.watway .facility-card, .watway .flow-card { background: #f4f7ee; border-color: #dce7d0; border-radius: 9px; color: #6c8753; }
+.watway .event-actions button, .watway .event-actions a, .watway .inline-route { color: #6e7766; }
+.watway .facility-card, .watway .flow-card { background: #f4f7ee; border-color: #dce7d0; border-radius: 9px; color: #6e7766; }
 .watway .facility-card strong, .watway .flow-card strong { color: #627f49; }
-.watway .facility-card small, .watway .facility-card p, .watway .flow-card p, .watway .flow-card small { color: #93a87b; }
-.watway .feed-freshness, .watway .feed-mode-toggle { color: #90a778; }
-.watway .feed-freshness b { color: #708e54; background: #edf4e3; border-color: #d7e6c7; }
-.watway .week-selector button { color: #92a67e; background: transparent; border: 1px solid #e1ead7; }
+.watway .facility-card small, .watway .facility-card p, .watway .flow-card p, .watway .flow-card small { color: #6e7766; }
+.watway .facility-card > div > b { color: #556c43; font-size: 22px; }
+.watway .facility-card footer { color: #6e7766; border-color: #dfe7d5; font-size: 9px; }
+.watway .facility-symbol { background: #e4ecd9; color: #6a8154; }
+.watway .occupancy-track { background: #dfe7d7; }
+.watway .feed-freshness, .watway .feed-mode-toggle { color: #6e7766; }
+.watway .feed-freshness b { color: #6e7766; background: #edf4e3; border-color: #d7e6c7; }
+.watway .week-selector button { color: #6e7766; background: transparent; border: 1px solid #e1ead7; }
 .watway .week-selector button.selected { background: #577343; color: #fff; border-color: #577343; }
-.watway .agenda-time { color: #6e8c54; }
-.watway .agenda-time small { color: #9eaf8c; }
-.watway .event-import, .watway .calendar-connection, .watway .optional-calendar { background: #f3f7ec; border-color: #dfe9d3; color: #748f5b; border-radius: 9px; }
-.watway .event-import p, .watway .optional-calendar p, .watway .calendar-connection p { color: #93a87c; }
+.watway .week-selector button b { color: inherit; }
+.watway .student-agenda.is-past { opacity: .8; }
+.watway .agenda-item > div:last-child > span { color: #6e7766; }
+.watway .agenda-time { color: #6e7766; }
+.watway .agenda-time small { color: #6e7766; }
+.watway .event-import, .watway .calendar-connection, .watway .optional-calendar { background: #f3f7ec; border-color: #dfe9d3; color: #6e7766; border-radius: 9px; }
+.watway .event-import p, .watway .optional-calendar p, .watway .calendar-connection p { color: #6e7766; }
 .watway .student-profile { color: #415d31; background: #fafcf7; }
 .watway .student-profile h2 { color: #5f7b49; }
 .watway .toast { background: #fff; color: #627d4a; border: 1px solid #dce8d0; box-shadow: 0 5px 24px #26351b21; }
 .watway .about-modal { background: #fcfdf9; color: #556f41; border-color: #dae5cd; }
-.watway .about-modal p, .watway .about-modal li { color: #849b6b; }
+.watway .about-modal p, .watway .about-modal li { color: #6e7766; }
 /* Tunnel and presentation scenes keep their purpose-specific contrast. */
 .watway.visual-tunnels .bottom-sheet { background: #fafaf8; border-color: var(--line); }
 .watway.visual-tunnels .tunnel-demo-panel h1 { color: #2f4329; }
-.watway.visual-tunnels .tunnel-demo-kicker, .watway.visual-tunnels .tunnel-demo-intro, .watway.visual-tunnels .demo-metrics, .watway.visual-tunnels .demo-collision { color: #8b9d78; }
+.watway.visual-tunnels .tunnel-demo-kicker, .watway.visual-tunnels .tunnel-demo-intro, .watway.visual-tunnels .demo-metrics, .watway.visual-tunnels .demo-collision { color: #6e7766; }
 .watway.visual-tunnels .demo-endpoints { border-color: #dce7d0; }
-.watway.visual-tunnels .demo-endpoints > div > span { color: #6c8753; }
-.watway.visual-tunnels .demo-endpoints small { color: #9dad8b; }
+.watway.visual-tunnels .demo-endpoints > div > span { color: #6e7766; }
+.watway.visual-tunnels .demo-endpoints small { color: #6e7766; }
 .watway.visual-tunnels .demo-play { background: #3c572e; color: #fff; border-radius: 9px; }
-.watway.visual-tunnels .demo-manual { border-color: #d4e3c6; color: #78975c; }
+.watway.visual-tunnels .demo-manual { border-color: #d4e3c6; color: #6e7766; }
 .watway.visual-tunnels .tunnel-map-title { top: 22px; left: 22px; }
 .watway.visual-tunnels .world-mode-switch { top: auto; bottom: 34px; }
 .watway.visual-tunnels .map-search, .watway.visual-tunnels .map-view-menu { display: none; }
@@ -250,6 +260,7 @@ h1, h2, h3 { font-family: inherit; }
   .watway { --header-height: calc(56px + env(safe-area-inset-top, 0px)); --nav-height: calc(58px + env(safe-area-inset-bottom, 0px)); --panel-height: 42dvh; --panel-width: 100%; }
   .watway.sheet-full { --panel-height: calc(100dvh - var(--header-height) - var(--nav-height) - 68px); }
   .watway.sheet-peek { --panel-height: 48px; }
+  .watway.place-detail.sheet-half, .watway.directions-open.sheet-half { --panel-height: 54dvh; }
   .watway .app-header { padding: env(safe-area-inset-top, 0px) 16px 0; gap: 8px; }
   .watway .brand > span:last-child { font-size: 19px; }
   .watway .brand-mark { width: 27px; height: 27px; font-size: 20px; }
@@ -261,17 +272,17 @@ h1, h2, h3 { font-family: inherit; }
   .watway .time-chip > svg:first-child { display: none; }
   .watway .campus-map, .watway.panel-hidden .campus-map { top: var(--header-height); left: 0; right: 0; bottom: var(--nav-height); border-radius: 0; }
   .watway .bottom-sheet { top: auto; bottom: var(--nav-height); height: var(--panel-height); border: 1px solid #dfe7d4; border-bottom: 0; border-radius: 16px 16px 0 0; box-shadow: 0 -3px 16px #25331b0a; }
-  .watway .sheet-handle { display: flex; height: 28px; min-height: 28px; padding: 0; color: #95a582; }
+  .watway .sheet-handle { display: flex; height: 28px; min-height: 28px; padding: 0; color: #6e7766; }
   .watway .sheet-handle i { width: 31px; height: 4px; background: #d0dbc4; }
   .watway .sheet-handle > span, .watway .sheet-handle > svg { display: none; }
   .watway.sheet-peek .sheet-handle { height: 48px; min-height: 48px; padding: 0 16px; gap: 8px; }
   .watway.sheet-peek .sheet-handle i { display: none; }
-  .watway.sheet-peek .sheet-handle > span { display: block; color: #748b5f; font-size: 12px; }
+  .watway.sheet-peek .sheet-handle > span { display: block; color: #6e7766; font-size: 12px; }
   .watway.sheet-peek .sheet-handle > svg { display: block; margin-left: auto; }
   .watway .sheet-content { padding: 4px 20px 24px; }
   .watway .desktop-nav, .watway .desktop-panel-footer { display: none; }
   .watway .mobile-nav { background: #fafbf7; border-top: 1px solid #e0e8d5; height: var(--nav-height); padding-bottom: env(safe-area-inset-bottom, 0px); }
-  .watway .mobile-nav > button { color: #9caa8b; font-size: 10px; min-height: 56px; gap: 5px; }
+  .watway .mobile-nav > button { color: #6e7766; font-size: 10px; min-height: 56px; gap: 5px; }
   .watway .mobile-nav > button > svg { width: 19px; height: 19px; }
   .watway .mobile-nav > button.active { color: #4a6935; }
   .watway .mobile-nav > button.active::before { display: none; }

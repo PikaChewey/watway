@@ -528,6 +528,8 @@ export default function App() {
         setLayersOpen(false);
         setWeatherOpen(false);
         setSearchOpen(false);
+        setOriginEdit(false);
+        setSheet("half");
         setTimelineOpen(false);
         setPlaying(false);
         if (mode === "first" || mode === "third") setMode("orbit");
@@ -784,7 +786,7 @@ export default function App() {
   ] as const;
   return (
     <div
-      className={`watway ${autoIndex !== null ? `presenting ${autoPaused ? "presentation-paused" : ""}` : ""} ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
+      className={`watway ${routeVisible ? "directions-open" : selectedBuilding ? "place-detail" : ""} ${autoIndex !== null ? `presenting ${autoPaused ? "presentation-paused" : ""}` : ""} ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
     >
       {autoIndex !== null && <DemoPlayback index={autoIndex} paused={autoPaused} elapsed={autoElapsed} walkProgress={progress} onPause={toggleFullDemo} onNext={advanceFullDemo} onRestart={()=>{setAutoIndex(null);setAutoPaused(false);setTimeout(()=>setAutoIndex(0),0);}} onStop={stopFullDemo}/>}
       {engineOpen && <AlgorithmPanel simplified={simpleDemoActive} presentationStage={autoIndex !== null && presentation[autoIndex].kind === "engine" ? (presentation[autoIndex] as {stage:number}).stage : undefined} route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
@@ -806,7 +808,7 @@ export default function App() {
           </span>
           <span>
             WAT<span>Way</span>
-            
+
           </span>
         </a>
         <div className="header-campus">
@@ -1606,17 +1608,7 @@ export default function App() {
                   <ArrowUpDown size={19} />
                 </button>
               </div>
-              <div className="preference-chips">
-                {Object.entries(profileLabels).map(([id, label]) => (
-                  <button
-                    className={profile === id ? "active" : ""}
-                    key={id}
-                    onClick={() => setProfile(id as RouteProfile)}
-                  >
-                    {id === "accessible" && <Accessibility size={14} />} {label}
-                  </button>
-                ))}
-              </div>
+              <label className="route-preference"><span>Route preference</span><select aria-label="Route preference" value={profile} onChange={e => setProfile(e.target.value as RouteProfile)}>{Object.entries(profileLabels).map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>
               {route ? (
                 <>
                   <div className="route-hero">
@@ -1633,10 +1625,6 @@ export default function App() {
                         )}
                       </span>
                     </div>
-                    <span className="route-quality">
-                      <ShieldCheck size={13} />
-                      {profileLabels[profile]}
-                    </span>
                   </div>
                   <div className="route-facts">
                     <span>
@@ -1802,13 +1790,13 @@ export default function App() {
               <div className="feed-freshness">
                 <span className="status-dot" />
                 {feed?.mode === "demo"
-                  ? "Demo day · ready to explore"
+                  ? "Demo data"
                   : feedLoading
                     ? "Updating campus sources…"
                     : feed?.fetchedAt
                       ? `Updated ${formatTime(feed.fetchedAt)}`
                       : "Connecting public sources"}
-                {scrub !== null && <b>Time preview</b>}
+
                 <button
                   className="feed-mode-toggle"
                   onClick={() => setLiveEnabled(!liveEnabled)}
@@ -2206,12 +2194,7 @@ export default function App() {
                         <span>{b.id === "LIB" ? "DP" : b.id}</span>
                         <div>
                           <strong>{b.shortName}</strong>
-                          <small>
-                            {b.floors} floors ·{" "}
-                            {campus.states[b.id]?.occupancy < 45
-                              ? "usually quieter"
-                              : "activity estimated"}
-                          </small>
+
                         </div>
                         <ChevronRight size={16} />
                       </button>
