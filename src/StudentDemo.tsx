@@ -7,7 +7,7 @@ export function StudentStory({at,onChapter,onProfile,onTunnel,onPlay,presenting}
   const time=at.getHours()*60+at.getMinutes();
   const active=[...chapters].reverse().find(c=>time>=c.time) || chapters[0];
   return <section className="student-story">
-    <div className="student-story-heading"><button className="student-avatar" onClick={onProfile} aria-label="Meet Maya Park">MP</button><div><span className="eyebrow">SAMPLE DAY</span><h2>Maya’s Tuesday</h2><small>Fictional student · winter scenario</small></div><button className="student-profile-link" onClick={onProfile} aria-label="View student profile"><ChevronRight size={19}/></button></div>
+    <div className="student-story-heading"><button className="student-avatar" onClick={onProfile} aria-label="Meet Maya Park">MP</button><div><span className="eyebrow">FICTIONAL STUDENT · DEMO</span><h2>Maya’s Tuesday</h2><small>CS 2A · REV residence · Winter demo</small></div><button className="student-profile-link" onClick={onProfile} aria-label="View student profile"><ChevronRight size={19}/></button></div>
     {!presenting && <button className="full-demo-launch" onClick={onPlay}><Play size={15} fill="currentColor"/><strong>Play full demo</strong><span>~4 min · hands-free</span></button>}
     <div className="student-chapters" aria-label="Follow Maya’s day">{chapters.map(c=><button key={c.id} aria-pressed={c.id===active.id} onClick={()=>onChapter(c)}><span>{String(Math.floor(c.time/60)).padStart(2,'0')}:{String(c.time%60).padStart(2,'0')}</span>{c.label}</button>)}</div>
     <p>{active.note}</p>
@@ -19,10 +19,10 @@ export function StudentWeek({events,at,onRoute,onProfile}:{events:CampusEvent[];
   const [selectedDay,setSelectedDay]=useState(2);
   const date=new Date(2026,8,14+(selectedDay+6)%7);
   const list=events.filter(e=>new Date(e.start).toDateString()===date.toDateString());
-  return <div className="student-week"><div className="panel-heading"><div><span className="eyebrow">MAYA PARK · DEMO WEEK</span><h1>Your week.</h1></div><button className="student-avatar" onClick={onProfile} aria-label="View student profile">MP</button></div><p className="micro-copy">Maya’s sample schedule. All times are fictional.</p>
+  return <div className="student-week"><div className="panel-heading"><div><span className="eyebrow">MAYA PARK · DEMO WEEK</span><h1>A full campus life.</h1></div><button className="student-avatar" onClick={onProfile} aria-label="View student profile">MP</button></div><p className="micro-copy">Five courses and labs, four workouts, coffee, friends, and selected Luma / WYGO events. All times are fictional.</p>
   <div className="week-selector">{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=><button key={d} aria-label={d} onClick={()=>setSelectedDay((i+1)%7)} className={selectedDay===(i+1)%7?'selected':''}><span>{d}</span><b>{14+i}</b></button>)}</div>
   <div className="section-head"><h2>{date.toLocaleDateString('en-CA',{weekday:'long'})}</h2><span>{list.length} plans</span></div>
-  {list.map(e=><div className={`agenda-item student-agenda ${Date.parse(e.end)<at.getTime()?'is-past':''}`} key={e.id}><div className="agenda-time">{clock(e.start)}<small>{clock(e.end)}</small></div><div><strong>{e.title}</strong><span>{e.location?.label}</span>{e.source!=='Sample'&&<small className="source-tag">{e.source}</small>}<button className="inline-route" onClick={()=>e.location&&onRoute(e.location.locationId)}>Show route<ChevronRight size={14}/></button></div></div>)}
+  {list.map(e=><div className={`agenda-item student-agenda ${Date.parse(e.end)<at.getTime()?'is-past':''}`} key={e.id}><div className="agenda-time">{clock(e.start)}<small>{clock(e.end)}</small></div><div><strong>{e.title}</strong><span>{e.location?.label}</span><small className="source-tag">{e.source==='Sample'?e.id.includes('demo-')?'Course · demo':'Habit · demo':`${e.source} · attending · demo`}</small><button className="inline-route" onClick={()=>e.location&&onRoute(e.location.locationId)}>Show route<ChevronRight size={14}/></button></div></div>)}
   </div>;
 }
 export function StudentProfile({onClose,onPersonal}:{onClose:()=>void;onPersonal:()=>void}) {

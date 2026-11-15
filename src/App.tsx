@@ -1,5 +1,4 @@
 import DemoPlayback from "./DemoPlayback";
-import FadeContent from "./ui/FadeContent";
 import { presentation } from "./intelligence/presentation";
 import AlgorithmPanel from "./AlgorithmPanel";
 import { StudentStory, StudentWeek, StudentProfile } from "./StudentDemo";
@@ -528,8 +527,6 @@ export default function App() {
         setLayersOpen(false);
         setWeatherOpen(false);
         setSearchOpen(false);
-        setOriginEdit(false);
-        setSheet("half");
         setTimelineOpen(false);
         setPlaying(false);
         if (mode === "first" || mode === "third") setMode("orbit");
@@ -557,7 +554,6 @@ export default function App() {
     setRouteVisible(false);
     setPlaying(false);
     setSearchOpen(false);
-    setOriginEdit(false);
     setSheet("half");
     setDesktopHidden(false);
   };
@@ -779,14 +775,14 @@ export default function App() {
       : places.filter((p) => p.category === category);
   const simpleDemoActive = (mode === "first" || mode === "third") && (pitchActive || (autoIndex !== null && ["walk","interior"].includes(presentation[autoIndex].kind)));
   const nav = [
-    ["home", Navigation, "Overview"],
+    ["home", Navigation, "For you"],
     ["explore", Compass, "Explore"],
     ["day", CalendarDays, "My day"],
     ["campus", Activity, "Campus"],
   ] as const;
   return (
     <div
-      className={`watway ${routeVisible ? "directions-open" : selectedBuilding ? "place-detail" : ""} ${autoIndex !== null ? `presenting ${autoPaused ? "presentation-paused" : ""}` : ""} ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
+      className={`watway ${autoIndex !== null ? `presenting ${autoPaused ? "presentation-paused" : ""}` : ""} ${demoStudentActive && tab === "home" && !routeVisible ? "demo-home" : ""} visual-${visualMode} ${night ? "night" : ""} sheet-${sheet} ${desktopHidden ? "panel-hidden" : ""} ${mode === "first" || mode === "third" ? "walking" : ""}`}
     >
       {autoIndex !== null && <DemoPlayback index={autoIndex} paused={autoPaused} elapsed={autoElapsed} walkProgress={progress} onPause={toggleFullDemo} onNext={advanceFullDemo} onRestart={()=>{setAutoIndex(null);setAutoPaused(false);setTimeout(()=>setAutoIndex(0),0);}} onStop={stopFullDemo}/>}
       {engineOpen && <AlgorithmPanel simplified={simpleDemoActive} presentationStage={autoIndex !== null && presentation[autoIndex].kind === "engine" ? (presentation[autoIndex] as {stage:number}).stage : undefined} route={routeVisible ? route : nextRoute} flow={flow} weather={effective} at={at} frozen={pitchActive && routeVisible} onClose={() => setEngineOpen(false)} onWeather={(snow) => {setWeatherMode(snow ? "snow" : "sun"); setSeason(snow ? "winter" : "summer"); setProfile("weather");}} onTraffic={(busy) => setScrub(busy ? 775 : 760)}/>}
@@ -808,15 +804,14 @@ export default function App() {
           </span>
           <span>
             WAT<span>Way</span>
-
+            <small>YOUR CAMPUS, IN SYNC</small>
           </span>
         </a>
         <div className="header-campus">
           <span className="status-dot" />
-          Waterloo <span className="campus-label">Main campus</span>
+          University of Waterloo <ChevronDown size={13} />
         </div>
         <div className="header-actions">
-          {demoStudentActive && <span className="demo-badge">Demo</span>}
           <button className="student-avatar header-student" aria-label="Open Maya’s demo profile" onClick={() => setStudentProfileOpen(true)}>MP</button>
           {offline && (
             <span className="offline-badge">
@@ -869,7 +864,8 @@ export default function App() {
             fallback={
               <div className="map-loading">
                 <span className="loading-mark">W</span>
-                <h2>Loading campus…</h2>
+                <h2>Finding your campus.</h2>
+                <p>Buildings, pathways, and your day—coming together.</p>
               </div>
             }
           >
@@ -989,6 +985,22 @@ export default function App() {
             );
           })}
         </div>
+        <button className="engine-trigger" onClick={() => setEngineOpen(true)} aria-label="See algorithms in action"><Activity size={15}/><strong>A*</strong><span>·</span><strong>{weatherMode === "snow" ? "Winter" : "Weather"}</strong><span>·</span><strong>Max-flow</strong><ChevronRight size={15}/></button>
+        <div className="map-status-pill">
+          <span className="status-dot" />
+          {indoor
+            ? `${selected} · ${floor === 0 ? "Basement" : `Floor ${floor}`}`
+            : scrub !== null
+              ? "TIME PREVIEW"
+              : "MAIN CAMPUS"}
+          <span>
+            {indoor
+              ? selected === "DC" && floor === 1
+                ? "Mapped interior"
+                : "Partial interior"
+              : campus.congestionLevel}
+          </span>
+        </div>
         {visualMode === "tunnels" && (
           <div className="tunnel-map-title">
             <span>WATERLOO UNDERGROUND</span>
@@ -1069,7 +1081,15 @@ export default function App() {
               setWeatherOpen(false);
             }}
           />
-
+          <IconButton
+            icon={RotateCcw}
+            label="Reset map"
+            onClick={() => {
+              setMode("orbit");
+              setIndoor(false);
+              map.current?.reset();
+            }}
+          />
         </div>
         {indoor && (
           <div className="floor-picker">
@@ -1102,9 +1122,29 @@ export default function App() {
               ))}
           </div>
         )}
-        <details className="map-view-menu">
-          <summary><PersonStanding size={17}/><span>Explore in 3D</span><ChevronDown size={14}/></summary>
-          <div className="map-view-actions">
+        {visualMode === "realistic" && mode !== "first" && mode !== "third" && (
+          <div className="walk-experiences">
+            <button
+              onClick={() => {
+                setVisualMode("tunnels");
+                setMode("map");
+                setRouteVisible(false);
+                setSelected(null);
+                setIndoor(false);
+                setPlaying(false);
+                setSheet("half");
+              }}
+            >
+              <LogIn size={16} />
+              Tunnel demo
+            </button>
+            <button onClick={() => walkNetwork("stairs")}>
+              <Footprints size={16} />
+              MC 4020
+            </button>
+          </div>
+        )}
+        <div className="map-view-actions">
           <button
             className={`indoor-toggle ${indoor ? "active" : ""}`}
             onClick={() => {
@@ -1150,7 +1190,6 @@ export default function App() {
             })}
           </div>
         </div>
-        </details>
         <div className="imagery-status">
           {(visualMode === "satellite" || visualMode === "terrain") && imageryStatus !== "Imagery ready" && (
             <span>{imageryStatus}</span>
@@ -1214,7 +1253,7 @@ export default function App() {
         {layersOpen && (
           <div className="map-popover">
             <div className="popover-title">
-              <h3>Map settings</h3>
+              <h3>Your map</h3>
               <button
                 aria-label="Close layers"
                 onClick={() => setLayersOpen(false)}
@@ -1270,7 +1309,6 @@ export default function App() {
                 <option value="battery">Battery saver</option>
               </select>
             </label>
-            <button className="secondary reset-map" onClick={() => {setMode("orbit");setIndoor(false);map.current?.reset();setLayersOpen(false);}}><RotateCcw size={15}/>Reset map</button>
             <p className="micro-copy">
               Activity is simulated from campus movement patterns. Gyms show
               published occupancy in Campus.
@@ -1497,11 +1535,10 @@ export default function App() {
           </span>
           <ChevronDown size={16} />
         </button>
-        <nav className="desktop-nav" aria-label="Main navigation">
+        <nav className="desktop-nav">
           {nav.map(([id, Icon, label]) => (
             <button
               className={tab === id && !routeVisible ? "active" : ""}
-              aria-current={tab === id && !routeVisible ? "page" : undefined}
               key={id}
               onClick={() => switchTab(id)}
             >
@@ -1515,14 +1552,14 @@ export default function App() {
             <>
               <div className="panel-heading">
                 <div>
-                  <h1>{originEdit ? "Starting point" : query ? "Search results" : "Find a place"}</h1>
+                  <span className="eyebrow">CAMPUS SEARCH</span>
+                  <h1>{query ? "Here’s what we found" : "Find your place"}</h1>
                 </div>
                 <button
                   className="round-action"
                   aria-label="Close search"
                   onClick={() => {
                     setSearchOpen(false);
-                    setOriginEdit(false);
                     setSheet("half");
                   }}
                 >
@@ -1608,7 +1645,17 @@ export default function App() {
                   <ArrowUpDown size={19} />
                 </button>
               </div>
-              <label className="route-preference"><span>Route preference</span><select aria-label="Route preference" value={profile} onChange={e => setProfile(e.target.value as RouteProfile)}>{Object.entries(profileLabels).map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+              <div className="preference-chips">
+                {Object.entries(profileLabels).map(([id, label]) => (
+                  <button
+                    className={profile === id ? "active" : ""}
+                    key={id}
+                    onClick={() => setProfile(id as RouteProfile)}
+                  >
+                    {id === "accessible" && <Accessibility size={14} />} {label}
+                  </button>
+                ))}
+              </div>
               {route ? (
                 <>
                   <div className="route-hero">
@@ -1625,6 +1672,10 @@ export default function App() {
                         )}
                       </span>
                     </div>
+                    <span className="route-quality">
+                      <ShieldCheck size={13} />
+                      {profileLabels[profile]}
+                    </span>
                   </div>
                   <div className="route-facts">
                     <span>
@@ -1728,41 +1779,192 @@ export default function App() {
           ) : visualMode === "tunnels" ? (
             <TunnelDemo onStart={startPitch} />
           ) : tab === "home" ? (
-            <FadeContent className="overview">
-              <div className="overview-heading">
-                <div><span className="eyebrow">{at.toLocaleDateString("en-CA", { weekday: "long", month: "short", day: "numeric" })}</span><h1>Your next stop.</h1></div>
-                <button className="round-action" aria-label="View my day" onClick={() => switchTab("day")}><CalendarDays size={20} /></button>
+            <>
+              <div className="home-greeting">
+                <div>
+                  <span className="eyebrow">
+                    {at.getHours() < 12
+                      ? "GOOD MORNING"
+                      : at.getHours() < 17
+                        ? "GOOD AFTERNOON"
+                        : "GOOD EVENING"}
+                  </span>
+                  <h1>{demoStudentActive ? "Your day, Maya." : "Your day, in sync."}</h1>
+                </div>
+                <span className="greeting-symbol">
+                  <Navigation size={28} />
+                </span>
               </div>
-              <button className="current-origin" onClick={() => {
-                setOriginEdit(true); setSearchOpen(true); setSheet("full"); search.current?.focus();
-              }}>
-                <LocateFixed size={14} /><span>From <b>{resolveLocation(from)?.name || "your location"}</b></span><ChevronDown size={13} />
+              {demoStudentActive ? <StudentStory onPlay={()=>{setAutoPaused(false);setAutoIndex(0);}} presenting={autoIndex !== null} at={at} onChapter={chooseChapter} onProfile={() => setStudentProfileOpen(true)} onTunnel={() => startPitch("guided")}/> : <button className="secondary" onClick={() => chooseChapter(chapters[0])}>Follow Maya’s demo day</button>}
+              <button
+                className="current-origin"
+                onClick={() => {
+                  setOriginEdit(true);
+                  setSearchOpen(true);
+                  setSheet("full");
+                  search.current?.focus();
+                }}
+              >
+                <MapPin size={14} />
+                <span>
+                  From <b>{resolveLocation(from)?.name || "your location"}</b>
+                </span>
+                <ChevronDown size={13} />
               </button>
               {next ? (
-                <article className="next-stop">
-                  <div className="next-stop-top"><span>{happening ? "Happening now" : "Up next"}</span><time>{formatTime(next.start)}</time></div>
-                  <div className="next-stop-place"><span className="stop-code">{next.location?.building || "UW"}</span><div><h2>{next.title.split(" · ")[0]}</h2><p>{next.location?.label}</p></div></div>
-                  <div className="next-stop-meta"><span><Clock size={14}/>{nextLeave ? `Leave ${formatTime(nextLeave)}` : "Choose a location"}</span><span>{nextRoute?.indoorPercent || 0}% indoors</span></div>
-                  <button className="directions-action" disabled={!next.location} onClick={() => next.location?.locationId && startRoute(next.location.locationId)}><Navigation size={17}/><span>Directions</span><strong>{minutes(nextRoute)} min</strong><ArrowRight size={17}/></button>
+                <article className="destination-card">
+                  <div className="destination-eyebrow">
+                    <span>
+                      {happening
+                        ? "HAPPENING NOW"
+                        : leaveMinutes <= 0
+                          ? "TIME TO HEAD OUT"
+                          : `LEAVE IN ${leaveMinutes} MIN`}
+                    </span>
+                    <small>
+                      {next.source === "Sample" ? "SAMPLE DAY" : next.source}
+                    </small>
+                  </div>
+                  <div className="destination-main">
+                    <div className="destination-code">
+                      {next.location?.building || "UW"}
+                    </div>
+                    <div>
+                      <h2>{next.title}</h2>
+                      <p>
+                        {next.location?.label}{" "}
+                        <span>· {formatTime(next.start)}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="destination-route">
+                    <span>
+                      <Clock size={15} />
+                      {nextLeave
+                        ? `Leave ${formatTime(nextLeave)}`
+                        : "Choose a location"}
+                    </span>
+                    <span>
+                      <Building2 size={15} />
+                      {nextRoute?.indoorPercent || 0}% indoors
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      next.location?.locationId &&
+                      startRoute(next.location.locationId)
+                    }
+                  >
+                    <Navigation size={17} />
+                    Your best route
+                    <strong>
+                      {minutes(nextRoute)} min
+                      <ArrowRight size={17} />
+                    </strong>
+                  </button>
                 </article>
               ) : (
-                <article className="calendar-empty"><CalendarDays size={24}/><h2>No plans ahead</h2><button className="secondary" onClick={() => switchTab("day")}>Add your schedule<Plus size={16}/></button></article>
+                <article className="connect-prompt">
+                  <CalendarDays size={27} />
+                  <div>
+                    <h2>Let the map know your day.</h2>
+                    <p>
+                      Connect your calendar for upcoming rooms, leave-by times,
+                      and timely suggestions.
+                    </p>
+                  </div>
+                  <button onClick={() => switchTab("day")}>
+                    <ArrowRight size={19} />
+                  </button>
+                </article>
               )}
-              <section className="nearby-section" aria-labelledby="nearby-heading">
-                <div className="section-head"><h2 id="nearby-heading">Find a place</h2><button onClick={() => {switchTab("explore");setCategory("all");}}>Browse<ArrowRight size={14}/></button></div>
-                <div className="place-shortcuts">{[["study", BookOpen, "Study"], ["food", Coffee, "Food & coffee"], ["recreation", Activity, "Fitness"]].map(([id, I, label]) => {const Icon = I as typeof BookOpen; return <button key={id as string} onClick={() => {switchTab("explore");setCategory(id as string);}}><Icon size={19}/><span>{label as string}</span></button>;})}</div>
-              </section>
-              {suggestions.length > 0 && <section><div className="section-head"><h2>Between classes</h2></div>{suggestions.slice(0, 2).map(r => <Opportunity key={r.place.id} name={r.place.name} category={r.place.category} minutes={r.walk} description={`${r.spare >= 60 ? "60+" : r.spare} min to spare`} onClick={() => startRoute(r.place.id)}/>)}</section>}
-              <button className="campus-link" onClick={() => switchTab("campus")}><span className="place-icon"><CalendarDays size={18}/></span><span><strong>On campus</strong><small>Events & recreation</small></span><ArrowRight size={17}/></button>
-              <details className="demo-disclosure" key={autoIndex !== null ? "presenting" : "idle"} open={autoIndex !== null}>
-                <summary><Play size={14}/><span>Demo & walkthroughs</span><ChevronDown size={15}/></summary>
-                <div className="demo-disclosure-content">
-                  {demoStudentActive ? <StudentStory onPlay={() => {setAutoPaused(false);setAutoIndex(0);}} presenting={autoIndex !== null} at={at} onChapter={chooseChapter} onProfile={() => setStudentProfileOpen(true)} onTunnel={() => startPitch("guided")}/> : <button className="secondary" onClick={() => chooseChapter(chapters[0])}>Try a sample day<ArrowRight size={16}/></button>}
-                  <div className="demo-tools"><button onClick={() => setEngineOpen(true)}><Activity size={16}/>Route algorithms<ChevronRight size={15}/></button><button onClick={() => {setVisualMode("tunnels");setMode("map");setRouteVisible(false);setSelected(null);setIndoor(false);setPlaying(false);setSheet("half");}}><LogIn size={16}/>Tunnel walkthrough<ChevronRight size={15}/></button><button onClick={() => walkNetwork("stairs")}><Footprints size={16}/>MC 4020 walkthrough<ChevronRight size={15}/></button></div>
+              <div className="context-grid">
+                <button onClick={() => setWeatherOpen(true)}>
+                  <WeatherIcon size={20} />
+                  <span>
+                    <strong>
+                      {effective.precipitation > 0
+                        ? "Stay a little drier"
+                        : weatherDescription(effective.code)}
+                    </strong>
+                    <small>
+                      {effective.precipitation > 0
+                        ? "Try Weather-smart routing"
+                        : `${Math.round(effective.temperature)}° · a good day to walk`}
+                    </small>
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    switchTab("campus");
+                    setTimelineOpen(true);
+                  }}
+                >
+                  <Activity size={20} />
+                  <span>
+                    <strong>{campus.congestionLevel}</strong>
+                    <small>Predicted campus movement</small>
+                  </span>
+                </button>
+              </div>
+              <div className="section-head">
+                <h2>
+                  {campus.gapMinutes >= 15
+                    ? `${campus.gapMinutes} minutes to make yours`
+                    : "A good next stop"}
+                </h2>
+                <span>FOR YOU</span>
+              </div>
+              {suggestions.length ? (
+                suggestions.map((r) => (
+                  <Opportunity
+                    key={r.place.id}
+                    name={r.place.name}
+                    category={r.place.category}
+                    minutes={r.walk}
+                    description={`${r.spare >= 60 ? "60+" : r.spare} min after walking · ${r.occupancy < 45 ? "usually quieter" : "activity estimated"}`}
+                    onClick={() => startRoute(r.place.id)}
+                  />
+                ))
+              ) : (
+                <div className="quiet-note">
+                  <Clock size={17} />A tight gap. Your next destination comes
+                  first.
                 </div>
-              </details>
-              <button className="detour-link" onClick={() => {map.current?.focus(closure.point,160);setToast(closure.detail);}}><Construction size={14}/><span>Math quad detour</span><ChevronRight size={14}/></button>
-            </FadeContent>
+              )}
+              <div className="section-head">
+                <h2>On campus today</h2>
+                <button onClick={() => switchTab("campus")}>
+                  See all
+                  <ArrowRight size={13} />
+                </button>
+              </div>
+              {displayedEvents.slice(0, 2).map((e) => (
+                <EventCard key={e.id} event={e} onRoute={startRoute} />
+              ))}
+              {!displayedEvents.length && (
+                <div className="quiet-note">
+                  <CalendarDays size={17} />
+                  {feedLoading
+                    ? "Checking public campus listings…"
+                    : "No confirmed upcoming campus events in this update."}
+                </div>
+              )}
+              <button
+                className="construction-note"
+                onClick={() => {
+                  map.current?.focus(closure.point, 160);
+                  setToast(closure.detail);
+                }}
+              >
+                <Construction size={19} />
+                <span>
+                  <strong>Math quad detour</strong>
+                  <small>MC–DC and MC–M3 bridges removed</small>
+                </span>
+                <ChevronRight size={17} />
+              </button>
+            </>
           ) : tab === "day" ? (
             demoStudentActive ? <StudentWeek events={mayaEvents} at={at} onRoute={startRoute} onProfile={() => setStudentProfileOpen(true)}/> : <CalendarPanel
               events={calendarEvents}
@@ -1777,7 +1979,8 @@ export default function App() {
             <>
               <div className="panel-heading">
                 <div>
-                  <h1>On campus</h1>
+                  <span className="eyebrow">WHAT’S HAPPENING AROUND YOU</span>
+                  <h1>Campus pulse</h1>
                 </div>
                 <button
                   className="round-action"
@@ -1790,13 +1993,13 @@ export default function App() {
               <div className="feed-freshness">
                 <span className="status-dot" />
                 {feed?.mode === "demo"
-                  ? "Demo data"
+                  ? "Demo day · ready to explore"
                   : feedLoading
                     ? "Updating campus sources…"
                     : feed?.fetchedAt
                       ? `Updated ${formatTime(feed.fetchedAt)}`
                       : "Connecting public sources"}
-
+                {scrub !== null && <b>Time preview</b>}
                 <button
                   className="feed-mode-toggle"
                   onClick={() => setLiveEnabled(!liveEnabled)}
@@ -1805,7 +2008,7 @@ export default function App() {
                 </button>
               </div>
               <div className="section-head">
-                <h2>Recreation</h2>
+                <h2>Room for a workout?</h2>
                 <a
                   href="https://warrior.uwaterloo.ca/FacilityOccupancy"
                   target="_blank"
@@ -2119,7 +2322,10 @@ export default function App() {
             <>
               <div className="panel-heading">
                 <div>
-                  <h1>Explore campus</h1>
+                  <span className="eyebrow">
+                    YOUR FAVOURITE CORNERS, CLOSER
+                  </span>
+                  <h1>Explore Waterloo</h1>
                 </div>
                 <Compass size={28} className="muted-icon" />
               </div>
@@ -2194,7 +2400,12 @@ export default function App() {
                         <span>{b.id === "LIB" ? "DP" : b.id}</span>
                         <div>
                           <strong>{b.shortName}</strong>
-
+                          <small>
+                            {b.floors} floors ·{" "}
+                            {campus.states[b.id]?.occupancy < 45
+                              ? "usually quieter"
+                              : "activity estimated"}
+                          </small>
                         </div>
                         <ChevronRight size={16} />
                       </button>
@@ -2222,7 +2433,7 @@ export default function App() {
         <div className="desktop-panel-footer">
           <span>
             <ShieldCheck size={13} />
-            Independent campus guide
+            Made for Waterloo. Grounded in sources.
           </span>
           <button onClick={() => setAbout(true)}>About</button>
         </div>
@@ -2231,7 +2442,6 @@ export default function App() {
         {nav.map(([id, Icon, label]) => (
           <button
             className={tab === id && !routeVisible ? "active" : ""}
-            aria-current={tab === id && !routeVisible ? "page" : undefined}
             key={id}
             onClick={() => switchTab(id)}
           >
