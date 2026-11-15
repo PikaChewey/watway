@@ -1067,15 +1067,7 @@ export default function App() {
               setWeatherOpen(false);
             }}
           />
-          <IconButton
-            icon={RotateCcw}
-            label="Reset map"
-            onClick={() => {
-              setMode("orbit");
-              setIndoor(false);
-              map.current?.reset();
-            }}
-          />
+
         </div>
         {indoor && (
           <div className="floor-picker">
@@ -1108,7 +1100,9 @@ export default function App() {
               ))}
           </div>
         )}
-        <div className="map-view-actions">
+        <details className="map-view-menu">
+          <summary><PersonStanding size={17}/><span>Explore in 3D</span><ChevronDown size={14}/></summary>
+          <div className="map-view-actions">
           <button
             className={`indoor-toggle ${indoor ? "active" : ""}`}
             onClick={() => {
@@ -1154,6 +1148,7 @@ export default function App() {
             })}
           </div>
         </div>
+        </details>
         <div className="imagery-status">
           {(visualMode === "satellite" || visualMode === "terrain") && imageryStatus !== "Imagery ready" && (
             <span>{imageryStatus}</span>
@@ -1217,7 +1212,7 @@ export default function App() {
         {layersOpen && (
           <div className="map-popover">
             <div className="popover-title">
-              <h3>Your map</h3>
+              <h3>Map settings</h3>
               <button
                 aria-label="Close layers"
                 onClick={() => setLayersOpen(false)}
@@ -1273,6 +1268,7 @@ export default function App() {
                 <option value="battery">Battery saver</option>
               </select>
             </label>
+            <button className="secondary reset-map" onClick={() => {setMode("orbit");setIndoor(false);map.current?.reset();setLayersOpen(false);}}><RotateCcw size={15}/>Reset map</button>
             <p className="micro-copy">
               Activity is simulated from campus movement patterns. Gyms show
               published occupancy in Campus.
